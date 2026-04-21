@@ -19,6 +19,8 @@ out/
 # Local machine settings
 local.properties
 */local.properties
+application-local.yaml
+*/application-local.yaml
 
 # Logs and temp files
 *.log
