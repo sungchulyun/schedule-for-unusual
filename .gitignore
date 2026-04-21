@@ -23,3 +23,6 @@ local.properties
 # Logs and temp files
 *.log
 *.tmp
+
+# Local docs not for version control
+docs/backend-db-schema.md
