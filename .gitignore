@@ -1,0 +1,25 @@
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+
+# Gradle / build outputs
+.gradle/
+build/
+*/build/
+*/.gradle/
+*/.kotlin/
+out/
+
+# Local machine settings
+local.properties
+*/local.properties
+
+# Logs and temp files
+*.log
+*.tmp
