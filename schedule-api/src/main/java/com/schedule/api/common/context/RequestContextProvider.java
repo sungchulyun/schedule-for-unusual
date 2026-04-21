@@ -1,43 +1,26 @@
 package com.schedule.api.common.context;
 
+import com.schedule.api.auth.security.AuthenticatedUser;
 import com.schedule.api.common.exception.BusinessException;
 import com.schedule.api.common.exception.ErrorCode;
-import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
-import org.springframework.web.context.request.RequestContextHolder;
-import org.springframework.web.context.request.ServletRequestAttributes;
 
 @Component
 public class RequestContextProvider {
 
-    private static final String GROUP_ID_HEADER = "X-Group-Id";
-    private static final String USER_ID_HEADER = "X-User-Id";
-
     public RequestContext getRequiredContext() {
-        HttpServletRequest request = currentRequest();
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
 
-        String groupId = request.getHeader(GROUP_ID_HEADER);
-        String userId = request.getHeader(USER_ID_HEADER);
-
-        if (groupId == null || groupId.isBlank()) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, GROUP_ID_HEADER + " header is required");
+        if (authentication == null || !(authentication.getPrincipal() instanceof AuthenticatedUser authenticatedUser)) {
+            throw new BusinessException(ErrorCode.AUTH_UNAUTHORIZED, "Authentication is required");
         }
 
-        if (userId == null || userId.isBlank()) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, USER_ID_HEADER + " header is required");
+        if (authenticatedUser.groupId() == null || authenticatedUser.groupId().isBlank()) {
+            throw new BusinessException(ErrorCode.GROUP_NOT_FOUND, "Authenticated user group is required");
         }
 
-        return new RequestContext(groupId, userId);
-    }
-
-    private HttpServletRequest currentRequest() {
-        ServletRequestAttributes attributes =
-                (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
-
-        if (attributes == null) {
-            throw new BusinessException(ErrorCode.INTERNAL_SERVER_ERROR, "Request context is not available");
-        }
-
-        return attributes.getRequest();
+        return new RequestContext(authenticatedUser.groupId(), authenticatedUser.userId());
     }
 }

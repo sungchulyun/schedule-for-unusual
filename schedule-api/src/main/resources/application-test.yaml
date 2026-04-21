@@ -1,0 +1,25 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:schedule-test;MODE=MySQL;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    properties:
+      hibernate:
+        format_sql: true
+    open-in-view: false
+
+app:
+  auth:
+    dev-header-enabled: true
+    jwt:
+      issuer: schedule-api-test
+      secret: test-secret-key-test-secret-key-123456
+      access-token-expiry-seconds: 3600
+      refresh-token-expiry-seconds: 1209600
+    kakao:
+      client-id: test-kakao-client-id
+      redirect-uri: http://localhost:8080/api/v1/auth/kakao/callback

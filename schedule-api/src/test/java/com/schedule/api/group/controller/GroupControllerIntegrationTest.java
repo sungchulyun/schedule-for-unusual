@@ -1,0 +1,101 @@
+package com.schedule.api.group.controller;
+
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import com.schedule.api.auth.domain.AppUser;
+import com.schedule.api.auth.domain.OAuthProvider;
+import com.schedule.api.auth.domain.UserStatus;
+import com.schedule.api.auth.repository.AppUserRepository;
+import java.time.Instant;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.MediaType;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.web.servlet.MockMvc;
+
+@SpringBootTest
+@AutoConfigureMockMvc
+@ActiveProfiles("test")
+class GroupControllerIntegrationTest {
+
+    @Autowired
+    private MockMvc mockMvc;
+
+    @Autowired
+    private AppUserRepository appUserRepository;
+
+    @Test
+    void createsInviteAndAcceptsPartnerConnection() throws Exception {
+        appUserRepository.save(new AppUser(
+                "usr_owner",
+                OAuthProvider.KAKAO,
+                "kakao-owner",
+                "owner",
+                null,
+                "grp_owner",
+                UserStatus.ACTIVE,
+                Instant.now(),
+                Instant.now()
+        ));
+        appUserRepository.save(new AppUser(
+                "usr_partner",
+                OAuthProvider.KAKAO,
+                "kakao-partner",
+                "partner",
+                null,
+                "grp_partner",
+                UserStatus.ACTIVE,
+                Instant.now(),
+                Instant.now()
+        ));
+
+        mockMvc.perform(get("/api/v1/groups/me")
+                        .header("X-Group-Id", "grp_owner")
+                        .header("X-User-Id", "usr_owner"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.groupId").value("grp_owner"))
+                .andExpect(jsonPath("$.data.members[0].role").value("OWNER"));
+
+        String inviteResponse = mockMvc.perform(post("/api/v1/groups/invites")
+                        .header("X-Group-Id", "grp_owner")
+                        .header("X-User-Id", "usr_owner"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.groupId").value("grp_owner"))
+                .andExpect(jsonPath("$.data.inviteCode").exists())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        String inviteCode = inviteResponse.split("\"inviteCode\":\"")[1].split("\"")[0];
+
+        mockMvc.perform(post("/api/v1/groups/invites/accept")
+                        .header("X-Group-Id", "grp_partner")
+                        .header("X-User-Id", "usr_partner")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "inviteCode": "%s"
+                                }
+                                """.formatted(inviteCode)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.groupId").value("grp_owner"))
+                .andExpect(jsonPath("$.data.members.length()").value(2))
+                .andExpect(jsonPath("$.data.permissions.canEditAllEvents").value(true));
+
+        mockMvc.perform(post("/api/v1/groups/partner")
+                        .header("X-Group-Id", "grp_owner")
+                        .header("X-User-Id", "usr_owner")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "inviteCode": "%s"
+                                }
+                                """.formatted(inviteCode)))
+                .andExpect(status().isNotFound());
+    }
+}
