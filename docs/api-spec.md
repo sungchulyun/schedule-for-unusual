@@ -2,18 +2,19 @@
 
 ## 1. 문서 개요
 
-이 문서는 [backend-requirements.md](/C:/Users/admin/Desktop/schedule/schedule-api/docs/backend-requirements.md)와 [requirements.md](/C:/Users/admin/Desktop/schedule/schedule-api/docs/requirements.md)를 기준으로 `ScheduleApp` 백엔드 API를 구체화한 명세서다.
+이 문서는 [backend-requirements.md](C:\Users\admin\Desktop\schedule\docs\backend-requirements.md)와 [requirements.md](C:\Users\admin\Desktop\schedule\docs\requirements.md)를 기준으로 `ScheduleApp` 백엔드 API를 구체화한 명세서다.
 
-초기 구현은 일정/근무 스케줄 CRUD와 캘린더 조회를 우선한다. 다만 CRUD 이후 인증/인가를 바로 도입할 계획이므로, 본 문서는 처음부터 `users.id` 기반 데이터 모델을 전제로 작성한다.
+초기 구현은 `Spring Security + Kakao OAuth2 + JWT` 기반 인증과 일정/근무 스케줄 CRUD, 캘린더 조회를 함께 포함한다. 본 문서는 처음부터 `users.id` 기반 데이터 모델을 전제로 작성한다.
 
 - 포함 범위
+  - 카카오 OAuth2 회원가입/로그인
+  - JWT 액세스 토큰/리프레시 토큰
   - 일정 CRUD
   - 근무 스케줄 CRUD
   - 월별 근무 스케줄 일괄 저장
   - 월간 캘린더 통합 조회
   - 날짜 상세 조회
 - 후속 범위
-  - 로그인/토큰
   - 그룹/파트너 연결
   - 정식 권한 검증
 
@@ -73,14 +74,49 @@ X-Group-Id: grp_01J8ZP3TQ4X
 
 - `200 OK`: 조회, 수정, 삭제 성공
 - `201 Created`: 생성 성공
+- `302 Found`: OAuth2 로그인 리다이렉트
 - `400 Bad Request`: 요청 형식 오류, 유효성 오류
+- `401 Unauthorized`: 인증 실패, 토큰 오류, 만료
+- `403 Forbidden`: 인가 실패
 - `404 Not Found`: 대상 리소스 없음
 - `409 Conflict`: 중복 또는 상태 충돌
 - `500 Internal Server Error`: 서버 내부 오류
 
-## 3. 공통 도메인 타입
+## 3. 인증 및 보안
 
-### 3.1 EventOwnerType
+### 3.1 인증 방식
+
+- 인증 프레임워크: `Spring Security`
+- 소셜 로그인: `Kakao OAuth2`
+- API 인증 토큰: `JWT`
+
+동작 원칙:
+
+1. 클라이언트는 카카오 로그인 페이지로 이동한다.
+2. 카카오 인증 성공 후 서버는 인가 코드를 받아 사용자 정보를 조회한다.
+3. 서버는 기존 회원이면 로그인, 신규면 회원가입 처리한다.
+4. 서버는 액세스 토큰과 리프레시 토큰을 발급한다.
+5. 보호된 API는 `Authorization: Bearer <access-token>`로 호출한다.
+
+### 3.2 보호 대상 API
+
+아래 API는 인증이 필요하다.
+
+- `/api/v1/users/me`
+- `/api/v1/events/**`
+- `/api/v1/shifts/**`
+- `/api/v1/calendar/**`
+- `/api/v1/groups/**`
+
+인증 없이 허용되는 API:
+
+- `/api/v1/auth/kakao/login`
+- `/api/v1/auth/kakao/callback`
+- `/api/v1/auth/refresh`
+
+## 4. 공통 도메인 타입
+
+### 4.1 EventOwnerType
 
 API 응답에서만 사용하는 계산 값이다.
 
@@ -94,14 +130,14 @@ API 응답에서만 사용하는 계산 값이다.
 - `subjectType = PERSONAL` 이고 `ownerUserId = currentUserId` 이면 `ownerType = ME`
 - `subjectType = PERSONAL` 이고 `ownerUserId != currentUserId` 이면 `ownerType = PARTNER`
 
-### 3.2 EventSubjectType
+### 4.2 EventSubjectType
 
 DB 저장 기준의 절대값이다.
 
 - `PERSONAL`
 - `SHARED`
 
-### 3.3 ShiftType
+### 4.3 ShiftType
 
 - `DAY`
 - `NIGHT`
@@ -110,9 +146,36 @@ DB 저장 기준의 절대값이다.
 - `OFF`
 - `VACATION`
 
-## 4. 공통 스키마
+## 5. 공통 스키마
 
-### 4.1 Event
+### 5.1 AuthTokenPair
+
+```json
+{
+  "accessToken": "eyJhbGciOiJIUzI1NiJ9...",
+  "refreshToken": "eyJhbGciOiJIUzI1NiJ9...",
+  "tokenType": "Bearer",
+  "expiresIn": 3600,
+  "refreshTokenExpiresIn": 1209600
+}
+```
+
+### 5.2 UserProfile
+
+```json
+{
+  "id": "usr_01J8ZQ11ABC",
+  "oauthProvider": "KAKAO",
+  "oauthProviderUserId": "3848383992",
+  "nickname": "성철",
+  "profileImageUrl": "https://k.kakaocdn.net/...",
+  "groupId": "grp_01J8ZP3TQ4X",
+  "createdAt": "2026-04-18T01:00:00Z",
+  "updatedAt": "2026-04-18T01:00:00Z"
+}
+```
+
+### 5.3 Event
 
 ```json
 {
@@ -139,7 +202,7 @@ DB 저장 기준의 절대값이다.
 - `ownerType`은 현재 로그인 사용자 기준으로 계산된 응답 값이다.
 - `createdByUserId`, `updatedByUserId`는 모두 `users.id`를 사용한다.
 
-### 4.2 ShiftSchedule
+### 5.4 ShiftSchedule
 
 ```json
 {
@@ -155,7 +218,7 @@ DB 저장 기준의 절대값이다.
 }
 ```
 
-### 4.3 CalendarDaySummary
+### 5.5 CalendarDaySummary
 
 ```json
 {
@@ -179,11 +242,16 @@ DB 저장 기준의 절대값이다.
 }
 ```
 
-## 5. 공통 에러 코드
+## 6. 공통 에러 코드
 
 | 코드 | 설명 |
 | --- | --- |
 | `VALIDATION_ERROR` | 요청 값 유효성 검증 실패 |
+| `AUTH_UNAUTHORIZED` | 인증 정보 없음 또는 인증 실패 |
+| `AUTH_INVALID_TOKEN` | JWT 서명 오류 또는 형식 오류 |
+| `AUTH_TOKEN_EXPIRED` | 액세스 토큰 또는 리프레시 토큰 만료 |
+| `AUTH_REFRESH_TOKEN_REVOKED` | 무효화된 리프레시 토큰 |
+| `AUTH_KAKAO_LOGIN_FAILED` | 카카오 OAuth2 로그인 실패 |
 | `GROUP_NOT_FOUND` | 존재하지 않는 그룹 |
 | `GROUP_ACCESS_DENIED` | 그룹 접근 불가 |
 | `GROUP_PARTNER_ALREADY_EXISTS` | 이미 파트너가 연결된 그룹 |
@@ -195,19 +263,89 @@ DB 저장 기준의 절대값이다.
 | `SHIFT_INVALID_TYPE` | 지원하지 않는 근무 타입 |
 | `INTERNAL_SERVER_ERROR` | 서버 내부 오류 |
 
-## 6. 헤더 규약
+## 7. 헤더 규약
 
-### 6.1 인증 도입 이후
+### 7.1 인증 헤더
 
 - `Authorization: Bearer <access-token>`
 
-### 6.2 전환기 보조 헤더
+### 7.2 전환기 보조 헤더
 
 | 헤더 | 필수 여부 | 설명 |
 | --- | --- | --- |
 | `X-Group-Id` | 선택 | 초기 전환기용 그룹 식별 보조 헤더 |
 
-## 7. 일정 API
+## 8. 인증 API
+
+## 8.1 카카오 로그인 시작
+
+- `GET /api/v1/auth/kakao/login`
+
+설명:
+
+- 서버는 카카오 OAuth2 인증 페이지로 리다이렉트한다.
+
+## 8.2 카카오 로그인 콜백
+
+- `GET /api/v1/auth/kakao/callback?code={authorizationCode}`
+
+응답 예시:
+
+```json
+{
+  "success": true,
+  "data": {
+    "user": {
+      "id": "usr_01J8ZQ11ABC",
+      "oauthProvider": "KAKAO",
+      "oauthProviderUserId": "3848383992",
+      "nickname": "성철",
+      "profileImageUrl": "https://k.kakaocdn.net/...",
+      "groupId": "grp_01J8ZP3TQ4X",
+      "createdAt": "2026-04-18T01:00:00Z",
+      "updatedAt": "2026-04-18T01:00:00Z"
+    },
+    "tokens": {
+      "accessToken": "eyJhbGciOiJIUzI1NiJ9...",
+      "refreshToken": "eyJhbGciOiJIUzI1NiJ9...",
+      "tokenType": "Bearer",
+      "expiresIn": 3600,
+      "refreshTokenExpiresIn": 1209600
+    },
+    "isNewUser": true
+  }
+}
+```
+
+## 8.3 토큰 재발급
+
+- `POST /api/v1/auth/refresh`
+
+요청 본문:
+
+```json
+{
+  "refreshToken": "eyJhbGciOiJIUzI1NiJ9..."
+}
+```
+
+## 8.4 로그아웃
+
+- `POST /api/v1/auth/logout`
+
+요청 본문:
+
+```json
+{
+  "refreshToken": "eyJhbGciOiJIUzI1NiJ9..."
+}
+```
+
+## 8.5 내 정보 조회
+
+- `GET /api/v1/users/me`
+
+## 9. 일정 API
 
 권한 원칙:
 
@@ -215,7 +353,7 @@ DB 저장 기준의 절대값이다.
 - `ownerType`은 권한 판단값이 아니다.
 - 권한 판단은 `currentUserId`, `groupId`, 그룹 멤버십으로 처리한다.
 
-## 7.1 월간 일정 조회
+## 9.1 월간 일정 조회
 
 - `GET /api/v1/events?year=2026&month=4`
 
@@ -273,7 +411,7 @@ Query Parameters:
 }
 ```
 
-## 7.2 날짜별 일정 조회
+## 9.2 날짜별 일정 조회
 
 - `GET /api/v1/events/date/{date}`
 
@@ -306,7 +444,7 @@ Query Parameters:
 }
 ```
 
-## 7.3 일정 생성
+## 9.3 일정 생성
 
 - `POST /api/v1/events`
 
@@ -355,7 +493,7 @@ Query Parameters:
 }
 ```
 
-## 7.4 일정 수정
+## 9.4 일정 수정
 
 - `PATCH /api/v1/events/{eventId}`
 
@@ -392,7 +530,7 @@ Query Parameters:
 }
 ```
 
-## 7.5 일정 삭제
+## 9.5 일정 삭제
 
 - `DELETE /api/v1/events/{eventId}`
 
@@ -413,13 +551,13 @@ Query Parameters:
 }
 ```
 
-## 8. 근무 스케줄 API
+## 10. 근무 스케줄 API
 
 권한 원칙:
 
 - 같은 그룹에 속한 두 사용자는 그룹 내 모든 근무 스케줄을 생성/수정/삭제할 수 있다.
 
-## 8.1 월간 근무 스케줄 조회
+## 10.1 월간 근무 스케줄 조회
 
 - `GET /api/v1/shifts?year=2026&month=4`
 
@@ -448,7 +586,7 @@ Query Parameters:
 }
 ```
 
-## 8.2 날짜별 근무 스케줄 조회
+## 10.2 날짜별 근무 스케줄 조회
 
 - `GET /api/v1/shifts/date/{date}`
 
@@ -474,7 +612,7 @@ Query Parameters:
 }
 ```
 
-## 8.3 날짜별 근무 스케줄 저장 또는 수정
+## 10.3 날짜별 근무 스케줄 저장 또는 수정
 
 - `PUT /api/v1/shifts/{date}`
 
@@ -505,7 +643,7 @@ Query Parameters:
 }
 ```
 
-## 8.4 월별 근무 스케줄 일괄 저장
+## 10.4 월별 근무 스케줄 일괄 저장
 
 - `PUT /api/v1/shifts/monthly?year=2026&month=4`
 
@@ -552,7 +690,7 @@ Query Parameters:
 }
 ```
 
-## 8.5 날짜별 근무 스케줄 삭제
+## 10.5 날짜별 근무 스케줄 삭제
 
 - `DELETE /api/v1/shifts/{date}`
 
@@ -569,9 +707,9 @@ Query Parameters:
 }
 ```
 
-## 9. 캘린더 통합 조회 API
+## 11. 캘린더 통합 조회 API
 
-## 9.1 월간 캘린더 조회
+## 11.1 월간 캘린더 조회
 
 - `GET /api/v1/calendar/month?year=2026&month=4`
 
@@ -658,7 +796,7 @@ Query Parameters:
 }
 ```
 
-## 9.2 날짜 상세 조회
+## 11.2 날짜 상세 조회
 
 - `GET /api/v1/calendar/date/{date}`
 
@@ -722,9 +860,9 @@ Query Parameters:
 }
 ```
 
-## 10. 유효성 검증 규칙
+## 12. 유효성 검증 규칙
 
-### 10.1 일정
+### 12.1 일정
 
 - `title`은 공백 제외 1자 이상이어야 한다.
 - `startDate <= endDate`를 만족해야 한다.
@@ -733,27 +871,27 @@ Query Parameters:
 - `subjectType = SHARED`이면 `ownerUserId`는 nullable 허용이다.
 - `ownerType`은 저장값이 아니라 응답 계산값이다.
 
-### 10.2 근무 스케줄
+### 12.2 근무 스케줄
 
 - `shiftType`은 정의된 enum 중 하나여야 한다.
 - 같은 `groupId`, 같은 `date`에는 하나의 스케줄만 허용한다.
 
-### 10.3 그룹/파트너
+### 12.3 그룹/파트너
 
 - 사용자 한 명은 동시에 하나의 그룹에만 속할 수 없다.
 - 하나의 그룹은 최대 2명으로 제한한다.
 - 이미 다른 그룹에 속한 사용자는 파트너로 등록할 수 없다.
 
-## 11. 후속 확장 API
+### 12.4 인증
 
-### 11.1 인증
+- 카카오 OAuth2 콜백의 `code`는 1회성으로 처리해야 한다.
+- 액세스 토큰이 만료되면 보호 API는 `401 Unauthorized`를 반환해야 한다.
+- 무효화된 리프레시 토큰으로 재발급할 수 없어야 한다.
+- 로그아웃 후 동일 리프레시 토큰 재사용은 실패해야 한다.
 
-- `POST /api/v1/auth/signup`
-- `POST /api/v1/auth/login`
-- `POST /api/v1/auth/refresh`
-- `POST /api/v1/auth/logout`
+## 13. 그룹/파트너 API
 
-### 11.2 그룹/파트너/초대
+### 13.1 그룹/파트너/초대
 
 - `POST /api/v1/groups`
 - `GET /api/v1/groups/me`
@@ -761,7 +899,7 @@ Query Parameters:
 - `POST /api/v1/groups/invites`
 - `POST /api/v1/groups/invites/accept`
 
-#### 11.2.1 파트너 추가
+#### 13.1.1 파트너 추가
 
 - `POST /api/v1/groups/partner`
 
@@ -808,17 +946,21 @@ Query Parameters:
 }
 ```
 
-## 12. 구현 메모
+## 14. 구현 메모
 
 - 일정과 근무 스케줄의 작성자/수정자는 모두 `users.id` 기준으로 저장하는 것이 좋다.
 - `ownerType`은 저장값으로 두지 말고, `subjectType`, `ownerUserId`, `currentUserId`로 응답 시 계산하는 것이 좋다.
 - 일정과 근무 스케줄 조회는 `deleted_at is null` 조건을 기본으로 사용해야 한다.
 - 권한 판단은 `currentUserId`와 그룹 멤버십으로 처리하고, `ME`/`PARTNER` 표시값과 분리해야 한다.
+- Spring Security OAuth2 로그인 성공 처리와 JWT 발급을 같은 인증 서비스에서 연결하면 단순하다.
+- 리프레시 토큰은 서버에서 무효화 가능해야 하므로 DB 저장 전략이 적합하다.
 
-## 13. MVP 우선 구현 목록
+## 15. MVP 우선 구현 목록
 
-1. `users`, `couple_groups`, `events`, `shift_schedules` 구조 확정
-2. `POST /events`, `PATCH /events/{eventId}`, `DELETE /events/{eventId}`
-3. `PUT /shifts/{date}`, `DELETE /shifts/{date}`, `PUT /shifts/monthly`
-4. `GET /calendar/month`, `GET /calendar/date/{date}`
-5. 이후 인증/그룹/초대 API 연결
+1. `users`, `refresh_tokens`, `couple_groups`, `events`, `shift_schedules` 구조 확정
+2. `GET /auth/kakao/login`, `GET /auth/kakao/callback`, `POST /auth/refresh`, `POST /auth/logout`
+3. `GET /users/me`
+4. `POST /events`, `PATCH /events/{eventId}`, `DELETE /events/{eventId}`
+5. `PUT /shifts/{date}`, `DELETE /shifts/{date}`, `PUT /shifts/monthly`
+6. `GET /calendar/month`, `GET /calendar/date/{date}`
+7. 이후 그룹/초대 API 연결
