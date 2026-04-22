@@ -38,6 +38,7 @@ public class SecurityConfig {
                                 "/api/v1/auth/kakao/mobile",
                                 "/api/v1/auth/mobile/exchange",
                                 "/api/v1/auth/refresh",
+                                "/api/v1/auth/logout",
                                 "/h2-console/**"
                         ).permitAll()
                         .anyRequest().authenticated()

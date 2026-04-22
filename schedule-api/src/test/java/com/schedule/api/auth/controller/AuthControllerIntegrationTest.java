@@ -77,7 +77,6 @@ class AuthControllerIntegrationTest {
         String rotatedRefreshToken = refreshedResponse.split("\"refreshToken\":\"")[1].split("\"")[0];
 
         mockMvc.perform(post("/api/v1/auth/logout")
-                        .header("Authorization", "Bearer " + accessToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
