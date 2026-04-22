@@ -63,7 +63,13 @@ class GroupControllerIntegrationTest {
 
         String inviteResponse = mockMvc.perform(post("/api/v1/groups/invites")
                         .header("X-Group-Id", "grp_owner")
-                        .header("X-User-Id", "usr_owner"))
+                        .header("X-User-Id", "usr_owner")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "channel": "KAKAO_TALK_SHARE"
+                                }
+                                """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.groupId").value("grp_owner"))
                 .andExpect(jsonPath("$.data.inviteId").exists())
@@ -113,5 +119,33 @@ class GroupControllerIntegrationTest {
                                 """.formatted(inviteCode)))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.error.code").value("GROUP_INVITE_NOT_FOUND"));
+    }
+
+    @Test
+    void rejectsUnsupportedInviteChannel() throws Exception {
+        appUserRepository.save(new AppUser(
+                "usr_owner_channel",
+                OAuthProvider.KAKAO,
+                "kakao-owner-channel",
+                "owner-channel",
+                null,
+                "grp_owner_channel",
+                UserStatus.ACTIVE,
+                Instant.now(),
+                Instant.now()
+        ));
+
+        mockMvc.perform(post("/api/v1/groups/invites")
+                        .header("X-Group-Id", "grp_owner_channel")
+                        .header("X-User-Id", "usr_owner_channel")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "channel": "SMS"
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.error.message").value("channel must be KAKAO_TALK_SHARE"));
     }
 }

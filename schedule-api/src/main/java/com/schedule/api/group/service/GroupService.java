@@ -26,6 +26,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @Transactional(readOnly = true)
 public class GroupService {
+    private static final String SUPPORTED_INVITE_CHANNEL = "KAKAO_TALK_SHARE";
 
     private final AppUserRepository appUserRepository;
     private final GroupInviteRepository groupInviteRepository;
@@ -75,7 +76,9 @@ public class GroupService {
     }
 
     @Transactional
-    public CreateInviteResponse createInvite(AuthenticatedUser authenticatedUser) {
+    public CreateInviteResponse createInvite(AuthenticatedUser authenticatedUser, String channel) {
+        validateInviteChannel(channel);
+
         AppUser user = requireUser(authenticatedUser.userId());
         List<AppUser> members = groupQueryService.loadGroupMembers(user.getGroupId());
 
@@ -194,6 +197,12 @@ public class GroupService {
     private GroupInvite requireInviteByToken(String inviteToken) {
         return groupInviteRepository.findByInviteToken(inviteToken)
                 .orElseThrow(() -> new BusinessException(ErrorCode.GROUP_INVITE_NOT_FOUND));
+    }
+
+    private void validateInviteChannel(String channel) {
+        if (!SUPPORTED_INVITE_CHANNEL.equals(channel)) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "channel must be " + SUPPORTED_INVITE_CHANNEL);
+        }
     }
 
     private String buildShareUrl(String inviteToken) {

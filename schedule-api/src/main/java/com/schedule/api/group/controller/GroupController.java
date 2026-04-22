@@ -5,6 +5,7 @@ import com.schedule.api.common.response.ApiResponse;
 import com.schedule.api.group.dto.AcceptInviteRequest;
 import com.schedule.api.group.dto.AcceptInviteResponse;
 import com.schedule.api.group.dto.CreateGroupResponse;
+import com.schedule.api.group.dto.CreateInviteRequest;
 import com.schedule.api.group.dto.CreateInviteResponse;
 import com.schedule.api.group.dto.GroupMeResponse;
 import com.schedule.api.group.dto.InviteLookupResponse;
@@ -51,8 +52,14 @@ public class GroupController {
     }
 
     @PostMapping("/invites")
-    public ApiResponse<CreateInviteResponse> createInvite(Authentication authentication) {
-        return ApiResponse.success(groupService.createInvite((AuthenticatedUser) authentication.getPrincipal()));
+    public ApiResponse<CreateInviteResponse> createInvite(
+            Authentication authentication,
+            @Valid @RequestBody CreateInviteRequest request
+    ) {
+        return ApiResponse.success(groupService.createInvite(
+                (AuthenticatedUser) authentication.getPrincipal(),
+                request.channel()
+        ));
     }
 
     @GetMapping("/invites/{inviteToken}")
