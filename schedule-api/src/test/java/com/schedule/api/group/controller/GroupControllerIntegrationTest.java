@@ -66,12 +66,25 @@ class GroupControllerIntegrationTest {
                         .header("X-User-Id", "usr_owner"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.groupId").value("grp_owner"))
+                .andExpect(jsonPath("$.data.inviteId").exists())
                 .andExpect(jsonPath("$.data.inviteCode").exists())
+                .andExpect(jsonPath("$.data.inviteToken").exists())
+                .andExpect(jsonPath("$.data.shareUrl").exists())
+                .andExpect(jsonPath("$.data.deepLink").exists())
                 .andReturn()
                 .getResponse()
                 .getContentAsString();
 
         String inviteCode = inviteResponse.split("\"inviteCode\":\"")[1].split("\"")[0];
+        String inviteToken = inviteResponse.split("\"inviteToken\":\"")[1].split("\"")[0];
+
+        mockMvc.perform(get("/api/v1/groups/invites/{inviteToken}", inviteToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.inviteId").exists())
+                .andExpect(jsonPath("$.data.groupId").value("grp_owner"))
+                .andExpect(jsonPath("$.data.inviter.userId").value("usr_owner"))
+                .andExpect(jsonPath("$.data.status").value("PENDING"))
+                .andExpect(jsonPath("$.data.requiresAuth").value(true));
 
         mockMvc.perform(post("/api/v1/groups/invites/accept")
                         .header("X-Group-Id", "grp_partner")
@@ -79,11 +92,13 @@ class GroupControllerIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                  "inviteCode": "%s"
+                                  "inviteToken": "%s"
                                 }
-                                """.formatted(inviteCode)))
+                                """.formatted(inviteToken)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.groupId").value("grp_owner"))
+                .andExpect(jsonPath("$.data.inviteId").exists())
+                .andExpect(jsonPath("$.data.accepted").value(true))
                 .andExpect(jsonPath("$.data.members.length()").value(2))
                 .andExpect(jsonPath("$.data.permissions.canEditAllEvents").value(true));
 
@@ -96,6 +111,7 @@ class GroupControllerIntegrationTest {
                                   "inviteCode": "%s"
                                 }
                                 """.formatted(inviteCode)))
-                .andExpect(status().isNotFound());
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.error.code").value("GROUP_INVITE_NOT_FOUND"));
     }
 }

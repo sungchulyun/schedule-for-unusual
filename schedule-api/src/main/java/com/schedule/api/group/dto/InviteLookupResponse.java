@@ -2,14 +2,12 @@ package com.schedule.api.group.dto;
 
 import java.time.Instant;
 
-public record CreateInviteResponse(
+public record InviteLookupResponse(
         String inviteId,
         String groupId,
-        String inviteCode,
-        String inviteToken,
-        String shareUrl,
-        String deepLink,
+        InviteInviterResponse inviter,
         String status,
+        boolean requiresAuth,
         Instant expiresAt
 ) {
 }

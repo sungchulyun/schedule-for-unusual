@@ -22,6 +22,9 @@ public class GroupInvite {
     @Column(length = 40, nullable = false, unique = true)
     private String code;
 
+    @Column(name = "invite_token", length = 60, nullable = false, unique = true)
+    private String inviteToken;
+
     @Enumerated(EnumType.STRING)
     @Column(length = 20, nullable = false)
     private InviteStatus status;
@@ -42,6 +45,7 @@ public class GroupInvite {
             String id,
             String groupId,
             String code,
+            String inviteToken,
             InviteStatus status,
             Instant expiresAt,
             String createdByUserId,
@@ -50,6 +54,7 @@ public class GroupInvite {
         this.id = id;
         this.groupId = groupId;
         this.code = code;
+        this.inviteToken = inviteToken;
         this.status = status;
         this.expiresAt = expiresAt;
         this.createdByUserId = createdByUserId;
@@ -74,6 +79,10 @@ public class GroupInvite {
 
     public String getCode() {
         return code;
+    }
+
+    public String getInviteToken() {
+        return inviteToken;
     }
 
     public InviteStatus getStatus() {
