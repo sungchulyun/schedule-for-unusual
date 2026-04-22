@@ -180,4 +180,28 @@ class CalendarControllerIntegrationTest {
                 .andExpect(jsonPath("$.data.events[0].title").value("내 일정"))
                 .andExpect(jsonPath("$.data.shift").isEmpty());
     }
+
+    @Test
+    void rejectsCalendarMonthOutsideDocumentedYearRange() throws Exception {
+        appUserRepository.save(new AppUser(
+                "usr_calendar_validation",
+                OAuthProvider.KAKAO,
+                "kakao-calendar-validation",
+                "calendar-validation",
+                null,
+                "grp_calendar_validation",
+                UserStatus.ACTIVE,
+                Instant.now(),
+                Instant.now()
+        ));
+
+        mockMvc.perform(get("/api/v1/calendar/month")
+                        .header("X-Group-Id", "grp_calendar_validation")
+                        .header("X-User-Id", "usr_calendar_validation")
+                        .param("year", "1999")
+                        .param("month", "4"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.error.message").value("year must be between 2000 and 2100"));
+    }
 }
