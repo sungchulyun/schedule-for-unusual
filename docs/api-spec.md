@@ -1,4 +1,4 @@
-# ScheduleApp API 명세서
+﻿# ScheduleApp API 명세서
 
 ## 1. 문서 개요
 
@@ -92,11 +92,12 @@ X-Group-Id: grp_01J8ZP3TQ4X
 
 동작 원칙:
 
-1. 클라이언트는 카카오 로그인 페이지로 이동한다.
-2. 카카오 인증 성공 후 서버는 인가 코드를 받아 사용자 정보를 조회한다.
-3. 서버는 기존 회원이면 로그인, 신규면 회원가입 처리한다.
-4. 서버는 액세스 토큰과 리프레시 토큰을 발급한다.
+1. Android 앱은 `POST /api/v1/auth/kakao/mobile`로 카카오 SDK에서 획득한 access token을 백엔드에 전달한다.
+2. 서버는 카카오 사용자 정보 API로 access token을 검증하고 사용자 프로필을 조회한다.
+3. 서버는 기존 회원이면 로그인, 신규면 회원가입 처리한 뒤 서비스용 JWT를 발급한다.
+4. Android 앱은 응답으로 받은 access token과 refresh token을 안전 저장소에 저장한다.
 5. 보호된 API는 `Authorization: Bearer <access-token>`로 호출한다.
+6. 기존 `/api/v1/auth/kakao/login -> /kakao/callback -> /mobile/exchange` 흐름은 브라우저 fallback 또는 테스트용으로 유지한다.
 
 ### 3.2 보호 대상 API
 
@@ -112,6 +113,8 @@ X-Group-Id: grp_01J8ZP3TQ4X
 
 - `/api/v1/auth/kakao/login`
 - `/api/v1/auth/kakao/callback`
+- `/api/v1/auth/kakao/mobile`
+- `/api/v1/auth/mobile/exchange`
 - `/api/v1/auth/refresh`
 
 ## 4. 공통 도메인 타입
@@ -277,17 +280,23 @@ DB 저장 기준의 절대값이다.
 
 ## 8. 인증 API
 
-## 8.1 카카오 로그인 시작
+## 8.1 카카오 모바일 로그인
 
-- `GET /api/v1/auth/kakao/login`
+- `POST /api/v1/auth/kakao/mobile`
 
 설명:
 
-- 서버는 카카오 OAuth2 인증 페이지로 리다이렉트한다.
+- Android 앱은 카카오 Android SDK 로그인 성공 후 받은 `accessToken`을 이 API로 전달한다.
+- 서버는 카카오 사용자 정보 API로 토큰을 검증하고, 서비스용 JWT를 발급한다.
+- Android 앱 기준 기본 로그인 경로는 이 API다.
 
-## 8.2 카카오 로그인 콜백
+요청 본문:
 
-- `GET /api/v1/auth/kakao/callback?code={authorizationCode}`
+```json
+{
+  "accessToken": "kakao-access-token-from-sdk"
+}
+```
 
 응답 예시:
 
@@ -317,7 +326,60 @@ DB 저장 기준의 절대값이다.
 }
 ```
 
-## 8.3 토큰 재발급
+## 8.2 카카오 로그인 시작 브라우저 fallback
+
+- `GET /api/v1/auth/kakao/login?appRedirectUri={appRedirectUri}`
+
+설명:
+
+- 기존 브라우저 기반 OAuth2 로그인 시작 엔드포인트다.
+- Android SDK 직접 로그인으로 전환했더라도 fallback 또는 테스트 용도로 유지한다.
+- 서버는 1회용 `state`를 생성하고 `state -> appRedirectUri`를 5분 TTL 메모리 저장소에 연결한다.
+
+## 8.3 카카오 로그인 콜백 브라우저 fallback
+
+- `GET /api/v1/auth/kakao/callback?code={authorizationCode}&state={state}`
+
+설명:
+
+- 브라우저 기반 fallback 흐름에서만 사용한다.
+- 성공 시 앱 딥링크로 `loginCode`를 전달한다.
+- 실패 시 앱 딥링크로 `errorCode`, `error`, `errorDescription`을 전달한다.
+- `state`가 없으면 브라우저/테스트용 JSON 응답을 그대로 반환한다.
+
+성공 응답 헤더 예시:
+
+```http
+HTTP/1.1 302 Found
+Location: scheduleapp://auth/callback?loginCode=9fd0a0d4-f1d2-4d77-9d28-8d1bc7e4cf35&isNewUser=true
+```
+
+실패 응답 헤더 예시:
+
+```http
+HTTP/1.1 302 Found
+Location: scheduleapp://auth/callback?errorCode=AUTH_KAKAO_LOGIN_FAILED&error=access_denied&errorDescription=user%20cancelled
+```
+
+## 8.4 모바일 로그인 코드 교환 브라우저 fallback
+
+- `POST /api/v1/auth/mobile/exchange`
+
+요청 본문:
+
+```json
+{
+  "loginCode": "9fd0a0d4-f1d2-4d77-9d28-8d1bc7e4cf35"
+}
+```
+
+설명:
+
+- 브라우저 fallback 로그인에서만 사용한다.
+- `loginCode`는 1회용이며, 교환 후 즉시 폐기된다.
+- 만료 시간은 현재 5분이다.
+
+## 8.5 토큰 재발급
 
 - `POST /api/v1/auth/refresh`
 
@@ -329,7 +391,7 @@ DB 저장 기준의 절대값이다.
 }
 ```
 
-## 8.4 로그아웃
+## 8.6 로그아웃
 
 - `POST /api/v1/auth/logout`
 
@@ -341,7 +403,7 @@ DB 저장 기준의 절대값이다.
 }
 ```
 
-## 8.5 내 정보 조회
+## 8.7 내 정보 조회
 
 - `GET /api/v1/users/me`
 
@@ -881,6 +943,9 @@ Query Parameters:
 - 사용자 한 명은 동시에 하나의 그룹에만 속할 수 없다.
 - 하나의 그룹은 최대 2명으로 제한한다.
 - 이미 다른 그룹에 속한 사용자는 파트너로 등록할 수 없다.
+- 파트너 초대의 기본 전달 방식은 카카오톡 친구 메시지 API 직접 발송이 아니라 `카카오톡 공유 기반 초대 링크`다.
+- 초대 링크는 만료 시간과 상태를 가져야 하며, 수락 시 1회성으로 처리되어야 한다.
+- 비로그인 사용자는 초대 링크 진입 후 가입 또는 로그인 완료 뒤 같은 초대로 복귀할 수 있어야 한다.
 
 ### 12.4 인증
 
@@ -891,30 +956,98 @@ Query Parameters:
 
 ## 13. 그룹/파트너 API
 
-### 13.1 그룹/파트너/초대
+### 13.1 그룹 조회
 
-- `POST /api/v1/groups`
 - `GET /api/v1/groups/me`
-- `POST /api/v1/groups/partner`
-- `POST /api/v1/groups/invites`
-- `POST /api/v1/groups/invites/accept`
-
-#### 13.1.1 파트너 추가
-
-- `POST /api/v1/groups/partner`
 
 설명:
 
-- 현재 사용자가 속한 그룹에 다른 사용자 1명을 파트너로 등록한다.
-- 이미 다른 그룹에 속한 사용자는 등록할 수 없다.
-- 그룹 정원이 2명인 경우 추가 등록은 실패해야 한다.
-- 초기 구현은 초대 코드 또는 초대 링크 수락 흐름을 우선 사용한다.
+- 현재 로그인 사용자가 속한 그룹과 멤버 정보를 조회한다.
+- 파트너 연결 상태 확인용 기본 API다.
+
+### 13.2 초대 생성
+
+- `POST /api/v1/groups/invites`
+
+설명:
+
+- 현재 로그인 사용자가 자신의 그룹에 대한 파트너 초대를 생성한다.
+- 생성 결과에는 카카오톡 공유에 사용할 초대 링크와 초대 토큰 메타데이터가 포함될 수 있다.
+- 실제 전달은 서버의 친구 메시지 직접 발송이 아니라 Android 앱의 `카카오톡 공유` 기능으로 수행한다.
 
 요청 본문 예시:
 
 ```json
 {
-  "inviteCode": "CP-9K3LQ2"
+  "channel": "KAKAO_TALK_SHARE"
+}
+```
+
+응답 예시:
+
+```json
+{
+  "success": true,
+  "data": {
+    "inviteId": "inv_01JATK123ABC",
+    "groupId": "grp_01",
+    "inviteToken": "itk_01JATKXYZ987",
+    "shareUrl": "https://app.example.com/invites/itk_01JATKXYZ987",
+    "deepLink": "scheduleapp://invite/accept?inviteToken=itk_01JATKXYZ987",
+    "status": "PENDING",
+    "expiresAt": "2026-04-25T12:00:00Z"
+  }
+}
+```
+
+요청 규칙:
+
+- 이미 파트너가 연결된 그룹이면 실패해야 한다.
+- 이미 활성 초대가 있으면 재사용 또는 재발급 정책을 명확히 해야 한다.
+- 초대 링크는 만료 시간을 가져야 한다.
+
+### 13.3 초대 조회
+
+- `GET /api/v1/groups/invites/{inviteToken}`
+
+설명:
+
+- 초대 링크 진입 후 초대 상세 정보를 조회한다.
+- 비로그인 사용자는 링크 유효성 정도만 확인하고, 로그인 후 수락 가능한 상태로 이어질 수 있어야 한다.
+
+응답 예시:
+
+```json
+{
+  "success": true,
+  "data": {
+    "inviteId": "inv_01JATK123ABC",
+    "groupId": "grp_01",
+    "inviter": {
+      "userId": "usr_me",
+      "nickname": "성철"
+    },
+    "status": "PENDING",
+    "requiresAuth": true,
+    "expiresAt": "2026-04-25T12:00:00Z"
+  }
+}
+```
+
+### 13.4 초대 수락
+
+- `POST /api/v1/groups/invites/accept`
+
+설명:
+
+- 로그인된 사용자가 초대 토큰을 기준으로 파트너 연결을 수락한다.
+- 성공 시 같은 그룹으로 연결되고, 이후 그룹 내 일정/근무 스케줄 공동 편집이 가능해진다.
+
+요청 본문 예시:
+
+```json
+{
+  "inviteToken": "itk_01JATKXYZ987"
 }
 ```
 
@@ -925,6 +1058,8 @@ Query Parameters:
   "success": true,
   "data": {
     "groupId": "grp_01",
+    "inviteId": "inv_01JATK123ABC",
+    "accepted": true,
     "members": [
       {
         "userId": "usr_me",
@@ -946,6 +1081,22 @@ Query Parameters:
 }
 ```
 
+요청 규칙:
+
+- 로그인 사용자만 수락할 수 있어야 한다.
+- 만료, 취소, 사용 완료 초대는 실패해야 한다.
+- 이미 다른 그룹에 속한 사용자는 실패해야 한다.
+- 이미 파트너가 연결된 그룹이면 실패해야 한다.
+
+### 13.5 파트너 직접 추가
+
+- `POST /api/v1/groups/partner`
+
+설명:
+
+- 현재 단계에서는 별도 직접 연결 API보다 초대 생성 및 수락 흐름을 우선 사용한다.
+- 이 엔드포인트가 유지되더라도 내부적으로는 유효한 초대 수락 결과를 확정하는 용도로 한정하는 것이 바람직하다.
+
 ## 14. 구현 메모
 
 - 일정과 근무 스케줄의 작성자/수정자는 모두 `users.id` 기준으로 저장하는 것이 좋다.
@@ -964,3 +1115,8 @@ Query Parameters:
 5. `PUT /shifts/{date}`, `DELETE /shifts/{date}`, `PUT /shifts/monthly`
 6. `GET /calendar/month`, `GET /calendar/date/{date}`
 7. 이후 그룹/초대 API 연결
+
+
+
+
+
