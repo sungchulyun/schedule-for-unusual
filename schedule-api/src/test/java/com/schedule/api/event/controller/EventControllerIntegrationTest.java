@@ -130,4 +130,39 @@ class EventControllerIntegrationTest {
                 .andExpect(jsonPath("$.data.items[0].title").value("내 일정"))
                 .andExpect(jsonPath("$.data.items[0].ownerType").value("ME"));
     }
+
+    @Test
+    void rejectsBlankTitleUpdate() throws Exception {
+        String response = mockMvc.perform(post("/api/v1/events")
+                        .header("X-Group-Id", "grp_filter")
+                        .header("X-User-Id", "usr_me")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "title": "기존 일정",
+                                  "startDate": "2026-04-18",
+                                  "endDate": "2026-04-18",
+                                  "subjectType": "SHARED"
+                                }
+                                """))
+                .andExpect(status().isCreated())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        String eventId = response.split("\"id\":\"")[1].split("\"")[0];
+
+        mockMvc.perform(patch("/api/v1/events/{eventId}", eventId)
+                        .header("X-Group-Id", "grp_filter")
+                        .header("X-User-Id", "usr_me")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "title": "   "
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.error.message").value("title must not be blank"));
+    }
 }

@@ -2,6 +2,7 @@ package com.schedule.api.common.exception;
 
 import com.schedule.api.common.response.ApiResponse;
 import jakarta.validation.ConstraintViolationException;
+import jakarta.validation.ValidationException;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -29,6 +30,7 @@ public class GlobalExceptionHandler {
             MethodArgumentNotValidException.class,
             BindException.class,
             ConstraintViolationException.class,
+            ValidationException.class,
             MethodArgumentTypeMismatchException.class,
             HttpMessageNotReadableException.class
     })
@@ -82,6 +84,10 @@ public class GlobalExceptionHandler {
 
         if (exception instanceof HttpMessageNotReadableException) {
             return "요청 본문을 읽을 수 없습니다.";
+        }
+
+        if (exception instanceof ValidationException validationException) {
+            return validationException.getMessage();
         }
 
         return ErrorCode.VALIDATION_ERROR.getDefaultMessage();

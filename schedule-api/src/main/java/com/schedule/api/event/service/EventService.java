@@ -68,6 +68,7 @@ public class EventService {
 
     @Transactional
     public EventResponse createEvent(RequestContext context, CreateEventRequest request) {
+        validateTitle(request.title());
         validateEventRule(request.startDate(), request.endDate(), request.subjectType(), request.ownerUserId());
 
         Instant now = Instant.now();
@@ -104,6 +105,7 @@ public class EventService {
                 : event.getOwnerUserId();
         String note = request.note() != null ? request.note() : event.getNote();
 
+        validateTitle(title);
         validateEventRule(startDate, endDate, subjectType, ownerUserId);
 
         event.update(
@@ -171,6 +173,12 @@ public class EventService {
 
         Set<EventOwnerType> allowedTypes = Set.copyOf(ownerTypes);
         return allowedTypes.contains(event.ownerType());
+    }
+
+    private void validateTitle(String title) {
+        if (title == null || title.isBlank()) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "title must not be blank");
+        }
     }
 
     private EventResponse toResponse(Event event, String currentUserId) {

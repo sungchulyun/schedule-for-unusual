@@ -72,7 +72,7 @@ public class EventController {
     @PatchMapping("/{eventId}")
     public ApiResponse<EventResponse> updateEvent(
             @PathVariable String eventId,
-            @RequestBody UpdateEventRequest request
+            @Valid @RequestBody UpdateEventRequest request
     ) {
         return ApiResponse.success(eventService.updateEvent(requestContextProvider.getRequiredContext(), eventId, request));
     }
