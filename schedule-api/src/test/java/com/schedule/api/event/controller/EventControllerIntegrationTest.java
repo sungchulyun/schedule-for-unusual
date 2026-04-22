@@ -78,4 +78,56 @@ class EventControllerIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.deleted").value(true));
     }
+
+    @Test
+    void filtersEventsByOwnerType() throws Exception {
+        mockMvc.perform(post("/api/v1/events")
+                        .header("X-Group-Id", "grp_filter")
+                        .header("X-User-Id", "usr_me")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "title": "내 일정",
+                                  "startDate": "2026-04-18",
+                                  "endDate": "2026-04-18",
+                                  "subjectType": "PERSONAL",
+                                  "ownerUserId": "usr_me"
+                                }
+                                """))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(post("/api/v1/events")
+                        .header("X-Group-Id", "grp_filter")
+                        .header("X-User-Id", "usr_me")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "title": "우리 일정",
+                                  "startDate": "2026-04-18",
+                                  "endDate": "2026-04-18",
+                                  "subjectType": "SHARED"
+                                }
+                                """))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(get("/api/v1/events")
+                        .header("X-Group-Id", "grp_filter")
+                        .header("X-User-Id", "usr_me")
+                        .param("year", "2026")
+                        .param("month", "4")
+                        .param("ownerTypes", "US"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items.length()").value(1))
+                .andExpect(jsonPath("$.data.items[0].title").value("우리 일정"))
+                .andExpect(jsonPath("$.data.items[0].ownerType").value("US"));
+
+        mockMvc.perform(get("/api/v1/events/date/2026-04-18")
+                        .header("X-Group-Id", "grp_filter")
+                        .header("X-User-Id", "usr_me")
+                        .param("ownerTypes", "ME"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items.length()").value(1))
+                .andExpect(jsonPath("$.data.items[0].title").value("내 일정"))
+                .andExpect(jsonPath("$.data.items[0].ownerType").value("ME"));
+    }
 }

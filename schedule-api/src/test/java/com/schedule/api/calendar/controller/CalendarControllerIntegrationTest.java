@@ -98,4 +98,86 @@ class CalendarControllerIntegrationTest {
                 .andExpect(jsonPath("$.data.events[0].title").value("데이트"))
                 .andExpect(jsonPath("$.data.shift.shiftType").value("DAY"));
     }
+
+    @Test
+    void appliesCalendarFiltersForOwnerTypesAndShiftVisibility() throws Exception {
+        appUserRepository.save(new AppUser(
+                "usr_filter",
+                OAuthProvider.KAKAO,
+                "kakao-usr-filter",
+                "filter",
+                null,
+                "grp_calendar_filter",
+                UserStatus.ACTIVE,
+                Instant.now(),
+                Instant.now()
+        ));
+
+        mockMvc.perform(post("/api/v1/events")
+                        .header("X-Group-Id", "grp_calendar_filter")
+                        .header("X-User-Id", "usr_filter")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "title": "내 일정",
+                                  "startDate": "2026-04-20",
+                                  "endDate": "2026-04-20",
+                                  "subjectType": "PERSONAL",
+                                  "ownerUserId": "usr_filter"
+                                }
+                                """))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(post("/api/v1/events")
+                        .header("X-Group-Id", "grp_calendar_filter")
+                        .header("X-User-Id", "usr_filter")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "title": "우리 일정",
+                                  "startDate": "2026-04-20",
+                                  "endDate": "2026-04-20",
+                                  "subjectType": "SHARED"
+                                }
+                                """))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(put("/api/v1/shifts/2026-04-20")
+                        .header("X-Group-Id", "grp_calendar_filter")
+                        .header("X-User-Id", "usr_filter")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "shiftType": "NIGHT"
+                                }
+                                """))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/v1/calendar/month")
+                        .header("X-Group-Id", "grp_calendar_filter")
+                        .header("X-User-Id", "usr_filter")
+                        .param("year", "2026")
+                        .param("month", "4")
+                        .param("ownerTypes", "US")
+                        .param("includeShifts", "false"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.filters.ownerTypes[0]").value("US"))
+                .andExpect(jsonPath("$.data.filters.includeShifts").value(false))
+                .andExpect(jsonPath("$.data.events.length()").value(1))
+                .andExpect(jsonPath("$.data.events[0].title").value("우리 일정"))
+                .andExpect(jsonPath("$.data.shifts.length()").value(0))
+                .andExpect(jsonPath("$.data.days[19].events.length()").value(1))
+                .andExpect(jsonPath("$.data.days[19].events[0].title").value("우리 일정"))
+                .andExpect(jsonPath("$.data.days[19].shift").isEmpty());
+
+        mockMvc.perform(get("/api/v1/calendar/date/2026-04-20")
+                        .header("X-Group-Id", "grp_calendar_filter")
+                        .header("X-User-Id", "usr_filter")
+                        .param("ownerTypes", "ME")
+                .param("includeShifts", "false"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.events.length()").value(1))
+                .andExpect(jsonPath("$.data.events[0].title").value("내 일정"))
+                .andExpect(jsonPath("$.data.shift").isEmpty());
+    }
 }

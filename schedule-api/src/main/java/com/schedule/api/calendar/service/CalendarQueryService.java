@@ -25,6 +25,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
@@ -49,7 +50,13 @@ public class CalendarQueryService {
         this.groupQueryService = groupQueryService;
     }
 
-    public CalendarMonthResponse getMonthlyCalendar(RequestContext context, int year, int month) {
+    public CalendarMonthResponse getMonthlyCalendar(
+            RequestContext context,
+            int year,
+            int month,
+            List<EventOwnerType> ownerTypes,
+            boolean includeShifts
+    ) {
         validateYearMonth(year, month);
         YearMonth yearMonth = YearMonth.of(year, month);
         LocalDate startDate = yearMonth.atDay(1);
@@ -58,36 +65,47 @@ public class CalendarQueryService {
         List<EventResponse> events = eventRepository.findActiveEventsInRange(context.groupId(), startDate, endDate)
                 .stream()
                 .map(event -> toEventResponse(event, context.userId()))
+                .filter(event -> matchesOwnerTypes(event.ownerType(), ownerTypes))
                 .toList();
 
-        List<ShiftResponse> shifts = shiftScheduleRepository.findActiveShiftsInRange(context.groupId(), startDate, endDate)
-                .stream()
-                .map(this::toShiftResponse)
-                .toList();
+        List<ShiftResponse> shifts = includeShifts
+                ? shiftScheduleRepository.findActiveShiftsInRange(context.groupId(), startDate, endDate)
+                        .stream()
+                        .map(this::toShiftResponse)
+                        .toList()
+                : List.of();
 
         return new CalendarMonthResponse(
                 year,
                 month,
-                new CalendarFilterResponse(DEFAULT_OWNER_TYPES, true),
+                new CalendarFilterResponse(toOwnerTypeNames(ownerTypes), includeShifts),
                 buildMeta(context),
                 events,
                 shifts,
-                buildDaySummaries(yearMonth, events, shifts)
+                buildDaySummaries(yearMonth, events, shifts, includeShifts)
         );
     }
 
-    public CalendarDateResponse getDateCalendar(RequestContext context, LocalDate date) {
+    public CalendarDateResponse getDateCalendar(
+            RequestContext context,
+            LocalDate date,
+            List<EventOwnerType> ownerTypes,
+            boolean includeShifts
+    ) {
         List<EventResponse> events = eventRepository.findActiveEventsInRange(context.groupId(), date, date)
                 .stream()
                 .map(event -> toEventResponse(event, context.userId()))
+                .filter(event -> matchesOwnerTypes(event.ownerType(), ownerTypes))
                 .sorted(Comparator.comparing(EventResponse::startDate)
                         .thenComparing(EventResponse::endDate)
                         .thenComparing(EventResponse::createdAt))
                 .toList();
 
-        ShiftResponse shift = shiftScheduleRepository.findByGroupIdAndDateAndDeletedAtIsNull(context.groupId(), date)
-                .map(this::toShiftResponse)
-                .orElse(null);
+        ShiftResponse shift = includeShifts
+                ? shiftScheduleRepository.findByGroupIdAndDateAndDeletedAtIsNull(context.groupId(), date)
+                        .map(this::toShiftResponse)
+                        .orElse(null)
+                : null;
 
         return new CalendarDateResponse(date, buildMeta(context), shift, events);
     }
@@ -149,7 +167,8 @@ public class CalendarQueryService {
     private List<CalendarDaySummaryResponse> buildDaySummaries(
             YearMonth yearMonth,
             List<EventResponse> events,
-            List<ShiftResponse> shifts
+            List<ShiftResponse> shifts,
+            boolean includeShifts
     ) {
         Map<LocalDate, ShiftResponse> shiftByDate = shifts.stream()
                 .collect(Collectors.toMap(ShiftResponse::date, Function.identity(), (left, right) -> right));
@@ -174,11 +193,30 @@ public class CalendarQueryService {
 
             days.add(new CalendarDaySummaryResponse(
                     date,
-                    shift == null ? null : new CalendarDayShiftResponse(shift.id(), shift.shiftType()),
+                    !includeShifts || shift == null ? null : new CalendarDayShiftResponse(shift.id(), shift.shiftType()),
                     dayEvents
             ));
         }
         return days;
+    }
+
+    private boolean matchesOwnerTypes(EventOwnerType ownerType, List<EventOwnerType> ownerTypes) {
+        if (ownerTypes == null || ownerTypes.isEmpty()) {
+            return true;
+        }
+
+        Set<EventOwnerType> allowedTypes = Set.copyOf(ownerTypes);
+        return allowedTypes.contains(ownerType);
+    }
+
+    private List<String> toOwnerTypeNames(List<EventOwnerType> ownerTypes) {
+        if (ownerTypes == null || ownerTypes.isEmpty()) {
+            return DEFAULT_OWNER_TYPES;
+        }
+
+        return ownerTypes.stream()
+                .map(Enum::name)
+                .toList();
     }
 
     private void validateYearMonth(int year, int month) {

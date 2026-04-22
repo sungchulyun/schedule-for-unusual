@@ -8,6 +8,7 @@ import com.schedule.api.event.dto.EventDateResponse;
 import com.schedule.api.event.dto.EventMonthResponse;
 import com.schedule.api.event.dto.EventResponse;
 import com.schedule.api.event.dto.UpdateEventRequest;
+import com.schedule.api.event.support.EventOwnerTypeFilterParser;
 import com.schedule.api.event.service.EventService;
 import jakarta.validation.Valid;
 import java.time.LocalDate;
@@ -39,16 +40,27 @@ public class EventController {
     @GetMapping
     public ApiResponse<EventMonthResponse> getMonthlyEvents(
             @RequestParam int year,
-            @RequestParam int month
+            @RequestParam int month,
+            @RequestParam(required = false) String ownerTypes
     ) {
-        return ApiResponse.success(eventService.getMonthlyEvents(requestContextProvider.getRequiredContext(), year, month));
+        return ApiResponse.success(eventService.getMonthlyEvents(
+                requestContextProvider.getRequiredContext(),
+                year,
+                month,
+                EventOwnerTypeFilterParser.parse(ownerTypes)
+        ));
     }
 
     @GetMapping("/date/{date}")
     public ApiResponse<EventDateResponse> getDateEvents(
-            @PathVariable @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date
+            @PathVariable @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+            @RequestParam(required = false) String ownerTypes
     ) {
-        return ApiResponse.success(eventService.getDateEvents(requestContextProvider.getRequiredContext(), date));
+        return ApiResponse.success(eventService.getDateEvents(
+                requestContextProvider.getRequiredContext(),
+                date,
+                EventOwnerTypeFilterParser.parse(ownerTypes)
+        ));
     }
 
     @PostMapping

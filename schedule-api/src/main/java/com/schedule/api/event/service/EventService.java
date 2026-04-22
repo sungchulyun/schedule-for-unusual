@@ -18,6 +18,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.List;
+import java.util.Set;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -33,7 +34,12 @@ public class EventService {
         this.idGenerator = idGenerator;
     }
 
-    public EventMonthResponse getMonthlyEvents(RequestContext context, int year, int month) {
+    public EventMonthResponse getMonthlyEvents(
+            RequestContext context,
+            int year,
+            int month,
+            List<EventOwnerType> ownerTypes
+    ) {
         validateYearMonth(year, month);
         YearMonth yearMonth = YearMonth.of(year, month);
 
@@ -44,15 +50,17 @@ public class EventService {
                 )
                 .stream()
                 .map(event -> toResponse(event, context.userId()))
+                .filter(event -> matchesOwnerTypes(event, ownerTypes))
                 .toList();
 
         return new EventMonthResponse(year, month, items);
     }
 
-    public EventDateResponse getDateEvents(RequestContext context, LocalDate date) {
+    public EventDateResponse getDateEvents(RequestContext context, LocalDate date, List<EventOwnerType> ownerTypes) {
         List<EventResponse> items = eventRepository.findActiveEventsInRange(context.groupId(), date, date)
                 .stream()
                 .map(event -> toResponse(event, context.userId()))
+                .filter(event -> matchesOwnerTypes(event, ownerTypes))
                 .toList();
 
         return new EventDateResponse(date, items);
@@ -154,6 +162,15 @@ public class EventService {
         }
 
         return ownerUserId == null ? null : ownerUserId.trim();
+    }
+
+    private boolean matchesOwnerTypes(EventResponse event, List<EventOwnerType> ownerTypes) {
+        if (ownerTypes == null || ownerTypes.isEmpty()) {
+            return true;
+        }
+
+        Set<EventOwnerType> allowedTypes = Set.copyOf(ownerTypes);
+        return allowedTypes.contains(event.ownerType());
     }
 
     private EventResponse toResponse(Event event, String currentUserId) {

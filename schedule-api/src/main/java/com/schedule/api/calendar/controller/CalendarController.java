@@ -5,6 +5,7 @@ import com.schedule.api.calendar.dto.CalendarMonthResponse;
 import com.schedule.api.calendar.service.CalendarQueryService;
 import com.schedule.api.common.context.RequestContextProvider;
 import com.schedule.api.common.response.ApiResponse;
+import com.schedule.api.event.support.EventOwnerTypeFilterParser;
 import java.time.LocalDate;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -31,17 +32,32 @@ public class CalendarController {
     @GetMapping("/month")
     public ApiResponse<CalendarMonthResponse> getCalendarMonth(
             @RequestParam int year,
-            @RequestParam int month
+            @RequestParam int month,
+            @RequestParam(required = false) String ownerTypes,
+            @RequestParam(defaultValue = "true") boolean includeShifts
     ) {
         return ApiResponse.success(
-                calendarQueryService.getMonthlyCalendar(requestContextProvider.getRequiredContext(), year, month)
+                calendarQueryService.getMonthlyCalendar(
+                        requestContextProvider.getRequiredContext(),
+                        year,
+                        month,
+                        EventOwnerTypeFilterParser.parse(ownerTypes),
+                        includeShifts
+                )
         );
     }
 
     @GetMapping("/date/{date}")
     public ApiResponse<CalendarDateResponse> getCalendarDate(
-            @PathVariable @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date
+            @PathVariable @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+            @RequestParam(required = false) String ownerTypes,
+            @RequestParam(defaultValue = "true") boolean includeShifts
     ) {
-        return ApiResponse.success(calendarQueryService.getDateCalendar(requestContextProvider.getRequiredContext(), date));
+        return ApiResponse.success(calendarQueryService.getDateCalendar(
+                requestContextProvider.getRequiredContext(),
+                date,
+                EventOwnerTypeFilterParser.parse(ownerTypes),
+                includeShifts
+        ));
     }
 }
