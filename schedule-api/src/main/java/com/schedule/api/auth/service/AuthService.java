@@ -18,15 +18,20 @@ import com.schedule.api.auth.security.JwtTokenProvider;
 import com.schedule.api.common.exception.BusinessException;
 import com.schedule.api.common.exception.ErrorCode;
 import com.schedule.api.common.util.IdGenerator;
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.util.UriComponentsBuilder;
 
 @Service
 @Transactional(readOnly = true)
 public class AuthService {
+    private static final String ALLOWED_APP_REDIRECT_PREFIX = "scheduleapp://auth/callback";
+    private static final long OAUTH_STATE_TTL_SECONDS = 300;
+    private static final long MOBILE_LOGIN_CODE_TTL_SECONDS = 300;
 
     private final KakaoOAuthClient kakaoOAuthClient;
     private final AppUserRepository appUserRepository;
@@ -34,6 +39,8 @@ public class AuthService {
     private final JwtTokenProvider jwtTokenProvider;
     private final IdGenerator idGenerator;
     private final AuthProperties authProperties;
+    private final Map<String, PendingAppLogin> pendingAppLogins = new ConcurrentHashMap<>();
+    private final Map<String, PendingMobileLogin> pendingMobileLogins = new ConcurrentHashMap<>();
 
     public AuthService(
             KakaoOAuthClient kakaoOAuthClient,
@@ -51,17 +58,81 @@ public class AuthService {
         this.authProperties = authProperties;
     }
 
-    public String buildKakaoLoginUrl() {
-        return authProperties.getKakao().getAuthUri()
-                + "?response_type=code"
-                + "&client_id=" + urlEncode(authProperties.getKakao().getClientId())
-                + "&redirect_uri=" + urlEncode(authProperties.getKakao().getRedirectUri());
+    public String buildKakaoLoginUrl(String appRedirectUri) {
+        UriComponentsBuilder builder = UriComponentsBuilder.fromUriString(authProperties.getKakao().getAuthUri())
+                .queryParam("response_type", "code")
+                .queryParam("client_id", authProperties.getKakao().getClientId())
+                .queryParam("redirect_uri", authProperties.getKakao().getRedirectUri());
+
+        String validatedRedirectUri = validateAppRedirectUri(appRedirectUri);
+        builder.queryParam("state", issueLoginState(validatedRedirectUri));
+
+        return builder.build().toUriString();
+    }
+
+    @Transactional
+    public AuthResultResponse exchangeMobileLogin(String loginCode) {
+        if (loginCode == null || loginCode.isBlank()) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "Login code is required");
+        }
+
+        PendingMobileLogin pendingMobileLogin = pendingMobileLogins.remove(loginCode.trim());
+        if (pendingMobileLogin == null || pendingMobileLogin.expiresAt().isBefore(Instant.now())) {
+            throw new BusinessException(ErrorCode.AUTH_INVALID_TOKEN, "Login code is invalid or expired");
+        }
+
+        return pendingMobileLogin.authResult();
+    }
+
+    public String consumeAppRedirectUri(String state) {
+        if (state == null || state.isBlank()) {
+            return null;
+        }
+
+        PendingAppLogin pendingAppLogin = pendingAppLogins.remove(state.trim());
+        if (pendingAppLogin == null || pendingAppLogin.expiresAt().isBefore(Instant.now())) {
+            throw new BusinessException(ErrorCode.AUTH_INVALID_TOKEN, "OAuth state is invalid or expired");
+        }
+
+        return pendingAppLogin.appRedirectUri();
+    }
+
+    public String buildAppRedirectUrl(String appRedirectUri, AuthResultResponse authResult) {
+        String validatedRedirectUri = validateAppRedirectUri(appRedirectUri);
+
+        return UriComponentsBuilder.fromUriString(validatedRedirectUri)
+                .queryParam("loginCode", issueMobileLoginCode(authResult))
+                .queryParam("isNewUser", authResult.isNewUser())
+                .build()
+                .toUriString();
+    }
+
+    public String buildAppErrorRedirectUrl(String appRedirectUri, String error, String errorDescription) {
+        String validatedRedirectUri = validateAppRedirectUri(appRedirectUri);
+
+        UriComponentsBuilder builder = UriComponentsBuilder.fromUriString(validatedRedirectUri)
+                .queryParam("errorCode", ErrorCode.AUTH_KAKAO_LOGIN_FAILED.name())
+                .queryParam("error", error);
+
+        if (errorDescription != null && !errorDescription.isBlank()) {
+            builder.queryParam("errorDescription", errorDescription);
+        }
+
+        return builder.build().toUriString();
     }
 
     @Transactional
     public AuthResultResponse authenticateWithKakao(String authorizationCode) {
-        KakaoUserProfile kakaoUserProfile = kakaoOAuthClient.getUserProfile(authorizationCode);
+        return authenticateKakaoUser(kakaoOAuthClient.getUserProfile(authorizationCode));
+    }
 
+    @Transactional
+    public AuthResultResponse authenticateWithKakaoAccessToken(String accessToken) {
+        return authenticateKakaoUser(kakaoOAuthClient.getUserProfileByAccessToken(accessToken));
+    }
+
+    @Transactional
+    private AuthResultResponse authenticateKakaoUser(KakaoUserProfile kakaoUserProfile) {
         AppUser user = appUserRepository.findByOauthProviderAndOauthProviderUserId(OAuthProvider.KAKAO, kakaoUserProfile.id())
                 .orElse(null);
         boolean isNewUser = false;
@@ -177,7 +248,49 @@ public class AuthService {
         );
     }
 
-    private String urlEncode(String value) {
-        return URLEncoder.encode(value, StandardCharsets.UTF_8);
+    private String validateAppRedirectUri(String appRedirectUri) {
+        if (appRedirectUri == null || appRedirectUri.isBlank()) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "App redirect URI is required");
+        }
+
+        String normalized = appRedirectUri.trim();
+        if (!ALLOWED_APP_REDIRECT_PREFIX.equals(normalized)) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "Unsupported app redirect URI");
+        }
+        return normalized;
+    }
+
+    private String issueLoginState(String appRedirectUri) {
+        cleanupExpiredEntries();
+
+        String state = UUID.randomUUID().toString();
+        pendingAppLogins.put(state, new PendingAppLogin(appRedirectUri, Instant.now().plusSeconds(OAUTH_STATE_TTL_SECONDS)));
+        return state;
+    }
+
+    private String issueMobileLoginCode(AuthResultResponse authResult) {
+        cleanupExpiredEntries();
+
+        String loginCode = UUID.randomUUID().toString();
+        pendingMobileLogins.put(loginCode, new PendingMobileLogin(authResult, Instant.now().plusSeconds(MOBILE_LOGIN_CODE_TTL_SECONDS)));
+        return loginCode;
+    }
+
+    private void cleanupExpiredEntries() {
+        Instant now = Instant.now();
+        pendingAppLogins.entrySet().removeIf(entry -> entry.getValue().expiresAt().isBefore(now));
+        pendingMobileLogins.entrySet().removeIf(entry -> entry.getValue().expiresAt().isBefore(now));
+    }
+
+    private record PendingAppLogin(
+            String appRedirectUri,
+            Instant expiresAt
+    ) {
+    }
+
+    private record PendingMobileLogin(
+            AuthResultResponse authResult,
+            Instant expiresAt
+    ) {
     }
 }
