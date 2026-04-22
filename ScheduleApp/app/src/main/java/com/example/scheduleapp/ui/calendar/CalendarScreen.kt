@@ -94,6 +94,8 @@ private data class CalendarEventBuckets(
 
 @Composable
 fun CalendarScreen(
+    showPartnerInviteAction: Boolean = false,
+    onInvitePartner: () -> Unit = {},
     calendarViewModel: CalendarViewModel = viewModel()
 ) {
     var currentMonth by remember { mutableStateOf(YearMonth.now()) }
@@ -140,18 +142,16 @@ fun CalendarScreen(
                         onNextMonth = { currentMonth = currentMonth.plusMonths(1) }
                     )
 
-                    Text(
-                        text = "나, 우리, 상대 일정과 교대 근무를 한 화면에서 함께 보는 MVP",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-
                     SyncStatusSection(
                         isLoading = remoteState.isLoading,
                         isSubmitting = remoteState.isSubmitting,
                         errorMessage = remoteState.errorMessage,
                         onDismissError = calendarViewModel::clearError
                     )
+
+                    if (showPartnerInviteAction) {
+                        PartnerInviteSection(onInvitePartner = onInvitePartner)
+                    }
 
                     FilterSection(filters = filters, onFiltersChanged = { filters = it })
 
@@ -285,6 +285,43 @@ fun CalendarScreen(
                     )
                 }
             )
+        }
+    }
+}
+
+@Composable
+private fun PartnerInviteSection(
+    onInvitePartner: () -> Unit
+) {
+    Surface(
+        shape = RoundedCornerShape(18.dp),
+        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
+                Text(
+                    text = "파트너 연결이 아직 없습니다.",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = "카카오톡으로 초대 링크를 보내 연결할 수 있습니다.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            OutlinedButton(onClick = onInvitePartner) {
+                Text("파트너 초대")
+            }
         }
     }
 }

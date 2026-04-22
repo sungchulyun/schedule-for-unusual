@@ -25,6 +25,19 @@ interface CalendarApiService {
     @GET("api/v1/groups/me")
     suspend fun getMyGroup(): Response<ApiEnvelope<GroupMeResponse>>
 
+    @POST("api/v1/groups/invites")
+    suspend fun createInvite(): Response<ApiEnvelope<CreateInviteResponse>>
+
+    @GET("api/v1/groups/invites/{inviteToken}")
+    suspend fun getInvite(
+        @Path("inviteToken") inviteToken: String
+    ): Response<ApiEnvelope<InviteLookupResponse>>
+
+    @POST("api/v1/groups/invites/accept")
+    suspend fun acceptInvite(
+        @Body request: AcceptInviteRequest
+    ): Response<ApiEnvelope<AcceptInviteResponse>>
+
     @GET("api/v1/calendar/month")
     suspend fun getCalendarMonth(
         @Query("year") year: Int,

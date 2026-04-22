@@ -2,13 +2,17 @@ package com.example.scheduleapp.data
 
 import com.example.scheduleapp.data.remote.ApiEnvelope
 import com.example.scheduleapp.data.remote.ApiErrorEnvelope
+import com.example.scheduleapp.data.remote.AcceptInviteRequest
+import com.example.scheduleapp.data.remote.AcceptInviteResponse
 import com.example.scheduleapp.data.remote.AuthResultResponse
 import com.example.scheduleapp.data.remote.GroupMeResponse
 import com.example.scheduleapp.data.remote.KakaoMobileLoginRequest
 import com.example.scheduleapp.data.remote.CalendarApiService
 import com.example.scheduleapp.data.remote.CalendarMonthResponse
+import com.example.scheduleapp.data.remote.CreateInviteResponse
 import com.example.scheduleapp.data.remote.CreateEventRequest
 import com.example.scheduleapp.data.remote.EventDto
+import com.example.scheduleapp.data.remote.InviteLookupResponse
 import com.example.scheduleapp.data.remote.MobileLoginExchangeRequest
 import com.example.scheduleapp.data.remote.MonthlyShiftItemRequest
 import com.example.scheduleapp.data.remote.MonthlyShiftRequest
@@ -44,6 +48,18 @@ class CalendarRepository(
     suspend fun exchangeMobileLogin(loginCode: String): AuthSession {
         val result = unwrap(service.exchangeMobileLogin(MobileLoginExchangeRequest(loginCode)))
         return result.toAuthSession()
+    }
+
+    suspend fun createInvite(): CreateInviteResponse {
+        return unwrap(service.createInvite())
+    }
+
+    suspend fun getInvite(inviteToken: String): InviteLookupResponse {
+        return unwrap(service.getInvite(inviteToken))
+    }
+
+    suspend fun acceptInvite(inviteToken: String): AcceptInviteResponse {
+        return unwrap(service.acceptInvite(AcceptInviteRequest(inviteToken = inviteToken)))
     }
 
     suspend fun getMonth(month: YearMonth): CalendarMonthData {

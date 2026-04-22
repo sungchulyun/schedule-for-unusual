@@ -23,6 +23,7 @@ object AuthSessionManager {
     private const val KeyNickname = "nickname"
     private const val KeyProfileImageUrl = "profile_image_url"
     private const val KeyPartnerUserId = "partner_user_id"
+    private const val KeyPendingInviteToken = "pending_invite_token"
     private var appContext: Context? = null
     @Volatile
     private var currentSession: AuthSession? = null
@@ -65,6 +66,30 @@ object AuthSessionManager {
             .clear()
             .apply()
         currentSession = null
+    }
+
+    fun getPendingInviteToken(): String? {
+        val context = appContext ?: return null
+        return context.getSharedPreferences(PreferencesName, Context.MODE_PRIVATE)
+            .getString(KeyPendingInviteToken, null)
+            ?.trim()
+            ?.ifBlank { null }
+    }
+
+    fun savePendingInviteToken(inviteToken: String) {
+        val context = requireNotNull(appContext) { "AuthSessionManager is not initialized." }
+        context.getSharedPreferences(PreferencesName, Context.MODE_PRIVATE)
+            .edit()
+            .putString(KeyPendingInviteToken, inviteToken.trim())
+            .apply()
+    }
+
+    fun clearPendingInviteToken() {
+        val context = appContext ?: return
+        context.getSharedPreferences(PreferencesName, Context.MODE_PRIVATE)
+            .edit()
+            .remove(KeyPendingInviteToken)
+            .apply()
     }
 
     private fun readSession(): AuthSession? {

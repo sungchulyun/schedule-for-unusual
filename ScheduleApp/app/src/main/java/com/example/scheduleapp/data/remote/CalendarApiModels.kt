@@ -121,6 +121,42 @@ data class GroupPermissionsDto(
     val canEditAllShifts: Boolean
 )
 
+data class CreateInviteResponse(
+    val inviteId: String,
+    val groupId: String,
+    val inviteToken: String,
+    val shareUrl: String,
+    val deepLink: String,
+    val status: String,
+    val expiresAt: String
+)
+
+data class InviteLookupResponse(
+    val inviteId: String,
+    val groupId: String,
+    val inviter: InviteInviterDto,
+    val status: String,
+    val requiresAuth: Boolean,
+    val expiresAt: String
+)
+
+data class InviteInviterDto(
+    val userId: String,
+    val nickname: String
+)
+
+data class AcceptInviteRequest(
+    val inviteToken: String
+)
+
+data class AcceptInviteResponse(
+    val groupId: String,
+    val inviteId: String,
+    val accepted: Boolean,
+    val members: List<GroupMemberDto>,
+    val permissions: GroupPermissionsDto
+)
+
 data class MobileLoginExchangeRequest(
     val loginCode: String
 )
