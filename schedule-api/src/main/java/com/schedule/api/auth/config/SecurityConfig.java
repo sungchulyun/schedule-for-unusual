@@ -33,6 +33,8 @@ public class SecurityConfig {
                         .requestMatchers(
                                 "/api/v1/auth/kakao/login",
                                 "/api/v1/auth/kakao/callback",
+                                "/api/v1/auth/kakao/mobile",
+                                "/api/v1/auth/mobile/exchange",
                                 "/api/v1/auth/refresh",
                                 "/h2-console/**"
                         ).permitAll()

@@ -25,24 +25,18 @@ public class KakaoApiClient implements KakaoOAuthClient {
     public KakaoUserProfile getUserProfile(String authorizationCode) {
         try {
             KakaoTokenResponse tokenResponse = exchangeAuthorizationCode(authorizationCode);
-            KakaoUserResponse userResponse = restClient.get()
-                    .uri(authProperties.getKakao().getUserInfoUri())
-                    .header("Authorization", "Bearer " + tokenResponse.accessToken())
-                    .retrieve()
-                    .body(KakaoUserResponse.class);
+            return fetchUserProfile(tokenResponse.accessToken());
+        } catch (BusinessException exception) {
+            throw exception;
+        } catch (Exception exception) {
+            throw new BusinessException(ErrorCode.AUTH_KAKAO_LOGIN_FAILED, "Kakao login failed");
+        }
+    }
 
-            if (userResponse == null || userResponse.id() == null) {
-                throw new BusinessException(ErrorCode.AUTH_KAKAO_LOGIN_FAILED, "Failed to read Kakao user profile");
-            }
-
-            String nickname = userResponse.kakaoAccount() != null && userResponse.kakaoAccount().profile() != null
-                    ? userResponse.kakaoAccount().profile().nickname()
-                    : "kakao-user";
-            String profileImageUrl = userResponse.kakaoAccount() != null && userResponse.kakaoAccount().profile() != null
-                    ? userResponse.kakaoAccount().profile().profileImageUrl()
-                    : null;
-
-            return new KakaoUserProfile(String.valueOf(userResponse.id()), nickname, profileImageUrl);
+    @Override
+    public KakaoUserProfile getUserProfileByAccessToken(String accessToken) {
+        try {
+            return fetchUserProfile(accessToken);
         } catch (BusinessException exception) {
             throw exception;
         } catch (Exception exception) {
@@ -73,6 +67,27 @@ public class KakaoApiClient implements KakaoOAuthClient {
         }
 
         return response;
+    }
+
+    private KakaoUserProfile fetchUserProfile(String accessToken) {
+        KakaoUserResponse userResponse = restClient.get()
+                .uri(authProperties.getKakao().getUserInfoUri())
+                .header("Authorization", "Bearer " + accessToken)
+                .retrieve()
+                .body(KakaoUserResponse.class);
+
+        if (userResponse == null || userResponse.id() == null) {
+            throw new BusinessException(ErrorCode.AUTH_KAKAO_LOGIN_FAILED, "Failed to read Kakao user profile");
+        }
+
+        String nickname = userResponse.kakaoAccount() != null && userResponse.kakaoAccount().profile() != null
+                ? userResponse.kakaoAccount().profile().nickname()
+                : "kakao-user";
+        String profileImageUrl = userResponse.kakaoAccount() != null && userResponse.kakaoAccount().profile() != null
+                ? userResponse.kakaoAccount().profile().profileImageUrl()
+                : null;
+
+        return new KakaoUserProfile(String.valueOf(userResponse.id()), nickname, profileImageUrl);
     }
 
     private record KakaoTokenResponse(
