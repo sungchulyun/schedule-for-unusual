@@ -2,10 +2,14 @@ package com.example.scheduleapp.data
 
 import com.example.scheduleapp.data.remote.ApiEnvelope
 import com.example.scheduleapp.data.remote.ApiErrorEnvelope
+import com.example.scheduleapp.data.remote.AuthResultResponse
+import com.example.scheduleapp.data.remote.GroupMeResponse
+import com.example.scheduleapp.data.remote.KakaoMobileLoginRequest
 import com.example.scheduleapp.data.remote.CalendarApiService
 import com.example.scheduleapp.data.remote.CalendarMonthResponse
 import com.example.scheduleapp.data.remote.CreateEventRequest
 import com.example.scheduleapp.data.remote.EventDto
+import com.example.scheduleapp.data.remote.MobileLoginExchangeRequest
 import com.example.scheduleapp.data.remote.MonthlyShiftItemRequest
 import com.example.scheduleapp.data.remote.MonthlyShiftRequest
 import com.example.scheduleapp.data.remote.ShiftDto
@@ -18,6 +22,7 @@ import com.example.scheduleapp.ui.calendar.ShiftType
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 import okhttp3.OkHttpClient
+import okhttp3.Request
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Response
 import retrofit2.Retrofit
@@ -31,9 +36,27 @@ class CalendarRepository(
 ) {
     private val errorParser = ErrorParser()
 
+    suspend fun authenticateWithKakaoAccessToken(accessToken: String): AuthSession {
+        val result = unwrap(service.authenticateWithKakaoAccessToken(KakaoMobileLoginRequest(accessToken)))
+        return result.toAuthSession()
+    }
+
+    suspend fun exchangeMobileLogin(loginCode: String): AuthSession {
+        val result = unwrap(service.exchangeMobileLogin(MobileLoginExchangeRequest(loginCode)))
+        return result.toAuthSession()
+    }
+
     suspend fun getMonth(month: YearMonth): CalendarMonthData {
         val data = unwrap(service.getCalendarMonth(month.year, month.monthValue, CalendarApiConfig.groupId))
         return data.toDomain()
+    }
+
+    suspend fun refreshPartnerUserId() {
+        val group = unwrap(service.getMyGroup())
+        val partnerUserId = group.members
+            .firstOrNull { it.userId != CalendarApiConfig.currentUserId }
+            ?.userId
+        AuthSessionManager.updatePartnerUserId(partnerUserId)
     }
 
     suspend fun createEvent(
@@ -142,6 +165,18 @@ class CalendarRepository(
         )
     }
 
+    private fun AuthResultResponse.toAuthSession(): AuthSession {
+        return AuthSession(
+            accessToken = tokens.accessToken,
+            refreshToken = tokens.refreshToken,
+            tokenType = tokens.tokenType,
+            currentUserId = user.id,
+            groupId = user.groupId,
+            nickname = user.nickname,
+            profileImageUrl = user.profileImageUrl
+        )
+    }
+
     private fun EventDto.toDomain(): CalendarEvent? {
         val ownerTypeValue = ownerType
         val mappedOwnerType = EventOwnerType.entries.firstOrNull { it.name == ownerTypeValue }
@@ -221,6 +256,19 @@ class CalendarRepository(
                 .addLast(KotlinJsonAdapterFactory())
                 .build()
             val okHttpClient = OkHttpClient.Builder()
+                .addInterceptor { chain ->
+                    val session = AuthSessionManager.getSession()
+                    val requestBuilder: Request.Builder = chain.request().newBuilder()
+
+                    session?.accessToken?.takeIf { it.isNotBlank() }?.let {
+                        requestBuilder.header("Authorization", "Bearer $it")
+                    }
+                    session?.groupId?.takeIf { it.isNotBlank() }?.let {
+                        requestBuilder.header("X-Group-Id", it)
+                    }
+
+                    chain.proceed(requestBuilder.build())
+                }
                 .addInterceptor(logger)
                 .build()
 

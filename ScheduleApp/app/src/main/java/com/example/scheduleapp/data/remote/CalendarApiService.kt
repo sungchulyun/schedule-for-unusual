@@ -12,6 +12,19 @@ import retrofit2.http.Path
 import retrofit2.http.Query
 
 interface CalendarApiService {
+    @POST("api/v1/auth/kakao/mobile")
+    suspend fun authenticateWithKakaoAccessToken(
+        @Body request: KakaoMobileLoginRequest
+    ): Response<ApiEnvelope<AuthResultResponse>>
+
+    @POST("api/v1/auth/mobile/exchange")
+    suspend fun exchangeMobileLogin(
+        @Body request: MobileLoginExchangeRequest
+    ): Response<ApiEnvelope<AuthResultResponse>>
+
+    @GET("api/v1/groups/me")
+    suspend fun getMyGroup(): Response<ApiEnvelope<GroupMeResponse>>
+
     @GET("api/v1/calendar/month")
     suspend fun getCalendarMonth(
         @Query("year") year: Int,

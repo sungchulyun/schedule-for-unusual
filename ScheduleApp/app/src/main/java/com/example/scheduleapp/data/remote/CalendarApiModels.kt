@@ -16,6 +16,31 @@ data class ApiErrorBody(
     val message: String? = null
 )
 
+data class AuthResultResponse(
+    val user: UserProfileDto,
+    val tokens: AuthTokenDto,
+    val isNewUser: Boolean
+)
+
+data class UserProfileDto(
+    val id: String,
+    val oauthProvider: String,
+    val oauthProviderUserId: String,
+    val nickname: String,
+    val profileImageUrl: String? = null,
+    val groupId: String,
+    val createdAt: String,
+    val updatedAt: String
+)
+
+data class AuthTokenDto(
+    val accessToken: String,
+    val refreshToken: String,
+    val tokenType: String,
+    val expiresIn: Long,
+    val refreshTokenExpiresIn: Long
+)
+
 data class CalendarMonthResponse(
     val year: Int,
     val month: Int,
@@ -77,4 +102,29 @@ data class MonthlyShiftItemRequest(
 
 data class MonthlyShiftRequest(
     val items: List<MonthlyShiftItemRequest>
+)
+
+data class GroupMeResponse(
+    val groupId: String,
+    val members: List<GroupMemberDto> = emptyList()
+)
+
+data class GroupMemberDto(
+    val userId: String,
+    val role: String,
+    val partnerStatus: String
+)
+
+data class GroupPermissionsDto(
+    val canReadAllEvents: Boolean,
+    val canEditAllEvents: Boolean,
+    val canEditAllShifts: Boolean
+)
+
+data class MobileLoginExchangeRequest(
+    val loginCode: String
+)
+
+data class KakaoMobileLoginRequest(
+    val accessToken: String
 )
