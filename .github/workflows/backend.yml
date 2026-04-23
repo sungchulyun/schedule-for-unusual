@@ -65,6 +65,14 @@ jobs:
               --name backend \
               --network app_default \
               -p 8080:8080 \
+              -e SPRING_PROFILES_ACTIVE=${{ secrets.SPRING_PROFILES_ACTIVE }} \
+              -e DB_HOST=${{ secrets.DB_HOST }} \
+              -e DB_NAME=${{ secrets.DB_NAME }} \
+              -e SPRING_DATASOURCE_USERNAME=${{ secrets.SPRING_DATASOURCE_USERNAME }} \
+              -e SPRING_DATASOURCE_PASSWORD=${{ secrets.SPRING_DATASOURCE_PASSWORD }} \
+              -e APP_AUTH_JWT_SECRET=${{ secrets.APP_AUTH_JWT_SECRET }} \
+              -e APP_AUTH_KAKAO_CLIENT_ID=${{ secrets.APP_AUTH_KAKAO_CLIENT_ID }} \
+              -e APP_AUTH_KAKAO_REDIRECT_URI=${{ secrets.APP_AUTH_KAKAO_REDIRECT_URI }} \
               ${{ secrets.DOCKER_USERNAME }}/schedule-backend:latest
 
             echo "✅ 배포 완료"
