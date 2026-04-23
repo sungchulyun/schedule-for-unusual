@@ -64,7 +64,7 @@ fun LoginScreen(
                     style = MaterialTheme.typography.headlineSmall
                 )
                 Text(
-                    text = "카카오 로그인만 지원합니다. 인증이 끝나면 앱이 로그인 코드를 교환해 인증 상태로 들어갑니다.",
+                    text = "카카오 계정으로 시작하면 서비스용 토큰을 발급받아 바로 일정 기능으로 들어갑니다.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -106,7 +106,7 @@ private fun KakaoLoginButton(
     ) {
         KakaoGlyph()
         Text(
-            text = "카카오 로그인",
+            text = "카카오로 시작하기",
             modifier = Modifier.padding(start = 12.dp),
             color = Color(0xFF191919),
             style = MaterialTheme.typography.titleMedium,

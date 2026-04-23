@@ -120,6 +120,16 @@ class CalendarViewModel(
         }
     }
 
+    fun deleteShift(
+        date: LocalDate,
+        monthToRefresh: YearMonth,
+        onSuccess: () -> Unit = {}
+    ) {
+        submit(monthToRefresh, onSuccess) {
+            repository.deleteShift(date)
+        }
+    }
+
     fun clearError() {
         uiState = uiState.copy(errorMessage = null)
     }

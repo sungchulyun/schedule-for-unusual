@@ -25,26 +25,43 @@ import com.example.scheduleapp.ui.theme.ScheduleAppTheme
 import com.kakao.sdk.auth.model.OAuthToken
 import com.kakao.sdk.common.model.ClientError
 import com.kakao.sdk.common.model.ClientErrorCause
+import com.kakao.sdk.share.ShareClient
+import com.kakao.sdk.template.model.Button
+import com.kakao.sdk.template.model.Link
+import com.kakao.sdk.template.model.TextTemplate
 import com.kakao.sdk.user.UserApiClient
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
+    private val repository by lazy { CalendarRepository() }
     private var latestInviteToken by mutableStateOf<String?>(null)
+    private var latestLoginCode by mutableStateOf<String?>(null)
+    private var latestLoginErrorMessage by mutableStateOf<String?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         AuthSessionManager.initialize(applicationContext)
-        captureInviteToken(intent?.data)
+        captureIncomingLink(intent?.data)
         enableEdgeToEdge()
 
         setContent {
             var session by remember { mutableStateOf(AuthSessionManager.getSession()) }
-            var loginErrorMessage by remember { mutableStateOf<String?>(null) }
+            var loginErrorMessage by remember { mutableStateOf<String?>(latestLoginErrorMessage) }
             var pendingInviteToken by remember { mutableStateOf(AuthSessionManager.getPendingInviteToken()) }
             var inviteDetail by remember { mutableStateOf<InviteLookupResponse?>(null) }
             var inviteLoading by remember { mutableStateOf(false) }
             var inviteSubmitting by remember { mutableStateOf(false) }
             var inviteErrorMessage by remember { mutableStateOf<String?>(null) }
+
+            fun clearInviteUiState() {
+                AuthSessionManager.clearPendingInviteToken()
+                latestInviteToken = null
+                pendingInviteToken = null
+                inviteDetail = null
+                inviteErrorMessage = null
+                inviteLoading = false
+                inviteSubmitting = false
+            }
 
             ScheduleAppTheme {
                 LaunchedEffect(latestInviteToken) {
@@ -54,9 +71,40 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
+                LaunchedEffect(latestLoginErrorMessage) {
+                    if (!latestLoginErrorMessage.isNullOrBlank()) {
+                        loginErrorMessage = latestLoginErrorMessage
+                    }
+                }
+
+                LaunchedEffect(session?.currentUserId, latestLoginCode) {
+                    val loginCode = latestLoginCode?.trim().orEmpty()
+                    if (session != null || loginCode.isBlank()) {
+                        return@LaunchedEffect
+                    }
+
+                    loginErrorMessage = null
+                    runCatching { repository.exchangeMobileLogin(loginCode) }
+                        .onSuccess { newSession ->
+                            AuthSessionManager.saveSession(newSession)
+                            session = newSession
+                            latestLoginCode = null
+                            latestLoginErrorMessage = null
+                            lifecycleScope.launch {
+                                runCatching { repository.refreshPartnerUserId() }
+                                session = AuthSessionManager.getSession()
+                            }
+                        }
+                        .onFailure {
+                            latestLoginCode = null
+                            latestLoginErrorMessage = it.message ?: "브라우저 로그인 교환에 실패했습니다."
+                            loginErrorMessage = latestLoginErrorMessage
+                        }
+                }
+
                 LaunchedEffect(session?.currentUserId, session?.partnerUserId) {
                     if (session != null && session?.partnerUserId == null) {
-                        runCatching { CalendarRepository().refreshPartnerUserId() }
+                        runCatching { repository.refreshPartnerUserId() }
                         session = AuthSessionManager.getSession()
                     }
                 }
@@ -73,7 +121,7 @@ class MainActivity : ComponentActivity() {
 
                     inviteLoading = true
                     inviteErrorMessage = null
-                    runCatching { CalendarRepository().getInvite(token) }
+                    runCatching { repository.getInvite(token) }
                         .onSuccess { inviteDetail = it }
                         .onFailure {
                             inviteDetail = null
@@ -94,7 +142,7 @@ class MainActivity : ComponentActivity() {
                                         session = newSession
                                         loginErrorMessage = null
                                         lifecycleScope.launch {
-                                            runCatching { CalendarRepository().refreshPartnerUserId() }
+                                            runCatching { repository.refreshPartnerUserId() }
                                             session = AuthSessionManager.getSession()
                                         }
                                     },
@@ -118,13 +166,10 @@ class MainActivity : ComponentActivity() {
                                 inviteErrorMessage = null
                                 lifecycleScope.launch {
                                     runCatching {
-                                        CalendarRepository().acceptInvite(token)
-                                        CalendarRepository().refreshPartnerUserId()
+                                        repository.acceptInvite(token)
+                                        repository.refreshPartnerUserId()
                                     }.onSuccess {
-                                        AuthSessionManager.clearPendingInviteToken()
-                                        latestInviteToken = null
-                                        pendingInviteToken = null
-                                        inviteDetail = null
+                                        clearInviteUiState()
                                         session = AuthSessionManager.getSession()
                                         Toast.makeText(
                                             this@MainActivity,
@@ -138,11 +183,7 @@ class MainActivity : ComponentActivity() {
                                 }
                             },
                             onDismiss = {
-                                AuthSessionManager.clearPendingInviteToken()
-                                latestInviteToken = null
-                                pendingInviteToken = null
-                                inviteDetail = null
-                                inviteErrorMessage = null
+                                clearInviteUiState()
                             }
                         )
                     }
@@ -153,7 +194,7 @@ class MainActivity : ComponentActivity() {
                             onInvitePartner = {
                                 lifecycleScope.launch {
                                     runCatching {
-                                        val invite = CalendarRepository().createInvite()
+                                        val invite = repository.createInvite()
                                         shareInvite(invite, session?.nickname)
                                     }.onFailure {
                                         Toast.makeText(
@@ -162,6 +203,13 @@ class MainActivity : ComponentActivity() {
                                             Toast.LENGTH_SHORT
                                         ).show()
                                     }
+                                }
+                            },
+                            onLogout = {
+                                lifecycleScope.launch {
+                                    runCatching { repository.logout() }
+                                    session = AuthSessionManager.getSession()
+                                    clearInviteUiState()
                                 }
                             }
                         )
@@ -174,17 +222,54 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        captureInviteToken(intent.data)
+        captureIncomingLink(intent.data)
     }
 
-    private fun captureInviteToken(uri: Uri?) {
-        val inviteToken = uri?.getQueryParameter("inviteToken")
+    private fun captureIncomingLink(uri: Uri?) {
+        val inviteToken = uri?.extractInviteToken()
+        if (inviteToken != null) {
+            AuthSessionManager.savePendingInviteToken(inviteToken)
+            latestInviteToken = inviteToken
+            return
+        }
+
+        when (uri?.host) {
+            "auth" -> {
+                latestLoginCode = uri.getQueryParameter("loginCode")
+                    ?.trim()
+                    ?.ifBlank { null }
+                latestLoginErrorMessage = parseAuthCallbackError(uri)
+            }
+        }
+    }
+
+    private fun Uri.extractInviteToken(): String? {
+        val isScheduleInviteLink = scheme == "scheduleapp" &&
+            host == "invite" &&
+            pathSegments.firstOrNull() == "accept"
+        val isKakaoShareAppLink = scheme == BuildConfig.KAKAO_NATIVE_APP_KEY.takeIf { it.isNotBlank() }
+            ?.let { "kakao$it" } &&
+            host == "kakaolink"
+
+        if (!isScheduleInviteLink && !isKakaoShareAppLink) {
+            return null
+        }
+
+        return getQueryParameter("inviteToken")
             ?.trim()
             ?.ifBlank { null }
-            ?: return
+    }
 
-        AuthSessionManager.savePendingInviteToken(inviteToken)
-        latestInviteToken = inviteToken
+    private fun parseAuthCallbackError(uri: Uri): String? {
+        val errorCode = uri.getQueryParameter("errorCode")?.trim()?.ifBlank { null } ?: return null
+        val description = uri.getQueryParameter("errorDescription")
+            ?.trim()
+            ?.ifBlank { null }
+        return if (description != null) {
+            "$errorCode: $description"
+        } else {
+            errorCode
+        }
     }
 
     private fun shareInvite(
@@ -192,23 +277,53 @@ class MainActivity : ComponentActivity() {
         inviterNickname: String?
     ) {
         val title = "${inviterNickname?.ifBlank { null } ?: "파트너"}님이 ScheduleApp 초대를 보냈어요."
+        val description = "ScheduleApp에서 캘린더와 근무 스케줄을 함께 쓰려면 초대를 수락해 주세요."
+        val executionParams = mapOf("inviteToken" to invite.inviteToken)
+        val template = TextTemplate(
+            text = "$title\n$description",
+            link = Link(
+                webUrl = invite.shareUrl,
+                mobileWebUrl = invite.shareUrl,
+                androidExecutionParams = executionParams
+            ),
+            buttonTitle = "초대 수락",
+            buttons = listOf(
+                Button(
+                    title = "초대 수락",
+                    link = Link(
+                        webUrl = invite.shareUrl,
+                        mobileWebUrl = invite.shareUrl,
+                        androidExecutionParams = executionParams
+                    )
+                )
+            )
+        )
+
+        if (ShareClient.instance.isKakaoTalkSharingAvailable(this)) {
+            ShareClient.instance.shareDefault(this, template) { sharingResult, error ->
+                when {
+                    error != null -> shareInviteViaText(title, description, invite)
+                    sharingResult != null -> startActivity(sharingResult.intent)
+                    else -> shareInviteViaText(title, description, invite)
+                }
+            }
+            return
+        }
+
+        shareInviteViaText(title, description, invite)
+    }
+
+    private fun shareInviteViaText(
+        title: String,
+        description: String,
+        invite: CreateInviteResponse
+    ) {
         val message = buildString {
             appendLine(title)
-            appendLine("아래 링크에서 초대를 수락하면 일정과 근무 스케줄을 함께 관리할 수 있습니다.")
+            appendLine(description)
             appendLine(invite.shareUrl)
             appendLine()
             append("앱에서 바로 열기: ${invite.deepLink}")
-        }
-
-        val kakaoTalkIntent = Intent(Intent.ACTION_SEND).apply {
-            type = "text/plain"
-            `package` = "com.kakao.talk"
-            putExtra(Intent.EXTRA_TEXT, message)
-        }
-
-        if (kakaoTalkIntent.resolveActivity(packageManager) != null) {
-            startActivity(kakaoTalkIntent)
-            return
         }
 
         val chooserIntent = Intent.createChooser(
@@ -236,7 +351,7 @@ class MainActivity : ComponentActivity() {
                 token != null -> {
                     lifecycleScope.launch {
                         runCatching {
-                            CalendarRepository().authenticateWithKakaoAccessToken(token.accessToken)
+                            repository.authenticateWithKakaoAccessToken(token.accessToken)
                         }.onSuccess {
                             onSuccess(it)
                         }.onFailure {

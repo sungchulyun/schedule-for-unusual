@@ -96,6 +96,7 @@ private data class CalendarEventBuckets(
 fun CalendarScreen(
     showPartnerInviteAction: Boolean = false,
     onInvitePartner: () -> Unit = {},
+    onLogout: () -> Unit = {},
     calendarViewModel: CalendarViewModel = viewModel()
 ) {
     var currentMonth by remember { mutableStateOf(YearMonth.now()) }
@@ -139,7 +140,8 @@ fun CalendarScreen(
                     CalendarHeader(
                         currentMonth = currentMonth,
                         onPreviousMonth = { currentMonth = currentMonth.minusMonths(1) },
-                        onNextMonth = { currentMonth = currentMonth.plusMonths(1) }
+                        onNextMonth = { currentMonth = currentMonth.plusMonths(1) },
+                        onLogout = onLogout
                     )
 
                     SyncStatusSection(
@@ -226,6 +228,12 @@ fun CalendarScreen(
                     calendarViewModel.upsertShift(
                         date = selectedDate,
                         shiftType = shiftType,
+                        monthToRefresh = currentMonth
+                    )
+                },
+                onDeleteShift = {
+                    calendarViewModel.deleteShift(
+                        date = selectedDate,
                         monthToRefresh = currentMonth
                     )
                 }
@@ -330,7 +338,8 @@ private fun PartnerInviteSection(
 private fun CalendarHeader(
     currentMonth: YearMonth,
     onPreviousMonth: () -> Unit,
-    onNextMonth: () -> Unit
+    onNextMonth: () -> Unit,
+    onLogout: () -> Unit
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -354,8 +363,16 @@ private fun CalendarHeader(
             )
         }
 
-        IconButton(onClick = onNextMonth) {
-            Text(text = ">", style = MaterialTheme.typography.titleLarge)
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            OutlinedButton(onClick = onLogout) {
+                Text("로그아웃")
+            }
+            IconButton(onClick = onNextMonth) {
+                Text(text = ">", style = MaterialTheme.typography.titleLarge)
+            }
         }
     }
 }
@@ -669,7 +686,8 @@ private fun DayDetailScreen(
     onBack: () -> Unit,
     onSaveEvent: (String?, EventOwnerType, LocalDate, LocalDate, String, String?) -> Unit,
     onDeleteEvent: (String) -> Unit,
-    onSaveShift: (ShiftType) -> Unit
+    onSaveShift: (ShiftType) -> Unit,
+    onDeleteShift: () -> Unit
 ) {
     var selectedShiftType by remember(selectedDate, shift) { mutableStateOf(shift?.shiftType) }
     var editingEventId by remember(selectedDate, events) { mutableStateOf<String?>(null) }
@@ -751,11 +769,16 @@ private fun DayDetailScreen(
 
             ShiftRegistrationSection(
                 selectedDate = selectedDate,
+                hasExistingShift = shift != null,
                 selectedShiftType = selectedShiftType,
                 onShiftTypeSelected = { selectedShiftType = it },
                 onSaveShift = {
                     val shiftType = selectedShiftType ?: return@ShiftRegistrationSection
                     onSaveShift(shiftType)
+                },
+                onDeleteShift = {
+                    selectedShiftType = null
+                    onDeleteShift()
                 }
             )
         }
@@ -1790,9 +1813,11 @@ private fun SelectedDateSummary(
 @Composable
 private fun ShiftRegistrationSection(
     selectedDate: LocalDate,
+    hasExistingShift: Boolean,
     selectedShiftType: ShiftType?,
     onShiftTypeSelected: (ShiftType) -> Unit,
-    onSaveShift: () -> Unit
+    onSaveShift: () -> Unit,
+    onDeleteShift: () -> Unit
 ) {
     Card(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -1809,7 +1834,11 @@ private fun ShiftRegistrationSection(
                 fontWeight = FontWeight.Bold
             )
             Text(
-                text = "근무 유형을 선택하면 해당 날짜의 기존 스케줄을 덮어씁니다.",
+                text = if (hasExistingShift) {
+                    "근무 유형을 선택하면 기존 스케줄을 덮어쓰고, 삭제 버튼으로 비울 수 있습니다."
+                } else {
+                    "근무 유형을 선택하면 해당 날짜의 스케줄을 저장합니다."
+                },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -1830,6 +1859,14 @@ private fun ShiftRegistrationSection(
                 enabled = selectedShiftType != null
             ) {
                 Text("스케줄 저장")
+            }
+            if (hasExistingShift) {
+                OutlinedButton(
+                    onClick = onDeleteShift,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("스케줄 삭제")
+                }
             }
         }
     }

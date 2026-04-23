@@ -1,6 +1,9 @@
 package com.example.scheduleapp.data
 
 import android.content.Context
+import android.content.SharedPreferences
+import androidx.security.crypto.EncryptedSharedPreferences
+import androidx.security.crypto.MasterKey
 
 data class AuthSession(
     val accessToken: String,
@@ -27,10 +30,13 @@ object AuthSessionManager {
     private var appContext: Context? = null
     @Volatile
     private var currentSession: AuthSession? = null
+    @Volatile
+    private var preferences: SharedPreferences? = null
 
     fun initialize(context: Context) {
         if (appContext != null) return
         appContext = context.applicationContext
+        preferences = createPreferences(requireNotNull(appContext))
         currentSession = readSession()
     }
 
@@ -40,7 +46,7 @@ object AuthSessionManager {
 
     fun saveSession(session: AuthSession) {
         val context = requireNotNull(appContext) { "AuthSessionManager is not initialized." }
-        context.getSharedPreferences(PreferencesName, Context.MODE_PRIVATE)
+        prefs(context)
             .edit()
             .putString(KeyAccessToken, session.accessToken)
             .putString(KeyRefreshToken, session.refreshToken)
@@ -61,7 +67,7 @@ object AuthSessionManager {
 
     fun clearSession() {
         val context = appContext ?: return
-        context.getSharedPreferences(PreferencesName, Context.MODE_PRIVATE)
+        prefs(context)
             .edit()
             .clear()
             .apply()
@@ -70,7 +76,7 @@ object AuthSessionManager {
 
     fun getPendingInviteToken(): String? {
         val context = appContext ?: return null
-        return context.getSharedPreferences(PreferencesName, Context.MODE_PRIVATE)
+        return prefs(context)
             .getString(KeyPendingInviteToken, null)
             ?.trim()
             ?.ifBlank { null }
@@ -78,7 +84,7 @@ object AuthSessionManager {
 
     fun savePendingInviteToken(inviteToken: String) {
         val context = requireNotNull(appContext) { "AuthSessionManager is not initialized." }
-        context.getSharedPreferences(PreferencesName, Context.MODE_PRIVATE)
+        prefs(context)
             .edit()
             .putString(KeyPendingInviteToken, inviteToken.trim())
             .apply()
@@ -86,7 +92,7 @@ object AuthSessionManager {
 
     fun clearPendingInviteToken() {
         val context = appContext ?: return
-        context.getSharedPreferences(PreferencesName, Context.MODE_PRIVATE)
+        prefs(context)
             .edit()
             .remove(KeyPendingInviteToken)
             .apply()
@@ -94,7 +100,7 @@ object AuthSessionManager {
 
     private fun readSession(): AuthSession? {
         val context = appContext ?: return null
-        val preferences = context.getSharedPreferences(PreferencesName, Context.MODE_PRIVATE)
+        val preferences = prefs(context)
         val accessToken = preferences.getString(KeyAccessToken, null)?.trim().orEmpty()
         val refreshToken = preferences.getString(KeyRefreshToken, null)?.trim().orEmpty()
         val tokenType = preferences.getString(KeyTokenType, null)?.trim().orEmpty()
@@ -118,5 +124,28 @@ object AuthSessionManager {
             profileImageUrl = profileImageUrl,
             partnerUserId = partnerUserId
         )
+    }
+
+    private fun prefs(context: Context): SharedPreferences {
+        return preferences ?: synchronized(this) {
+            preferences ?: createPreferences(context.applicationContext).also { preferences = it }
+        }
+    }
+
+    private fun createPreferences(context: Context): SharedPreferences {
+        return runCatching {
+            val masterKey = MasterKey.Builder(context)
+                .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+                .build()
+            EncryptedSharedPreferences.create(
+                context,
+                PreferencesName,
+                masterKey,
+                EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+                EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+            )
+        }.getOrElse {
+            context.getSharedPreferences(PreferencesName, Context.MODE_PRIVATE)
+        }
     }
 }

@@ -5,17 +5,22 @@ import com.example.scheduleapp.data.remote.ApiErrorEnvelope
 import com.example.scheduleapp.data.remote.AcceptInviteRequest
 import com.example.scheduleapp.data.remote.AcceptInviteResponse
 import com.example.scheduleapp.data.remote.AuthResultResponse
+import com.example.scheduleapp.data.remote.AuthTokenDto
 import com.example.scheduleapp.data.remote.GroupMeResponse
 import com.example.scheduleapp.data.remote.KakaoMobileLoginRequest
 import com.example.scheduleapp.data.remote.CalendarApiService
 import com.example.scheduleapp.data.remote.CalendarMonthResponse
+import com.example.scheduleapp.data.remote.CreateInviteRequest
 import com.example.scheduleapp.data.remote.CreateInviteResponse
 import com.example.scheduleapp.data.remote.CreateEventRequest
+import com.example.scheduleapp.data.remote.DeleteShiftResponse
 import com.example.scheduleapp.data.remote.EventDto
 import com.example.scheduleapp.data.remote.InviteLookupResponse
+import com.example.scheduleapp.data.remote.LogoutRequest
 import com.example.scheduleapp.data.remote.MobileLoginExchangeRequest
 import com.example.scheduleapp.data.remote.MonthlyShiftItemRequest
 import com.example.scheduleapp.data.remote.MonthlyShiftRequest
+import com.example.scheduleapp.data.remote.RefreshTokenRequest
 import com.example.scheduleapp.data.remote.ShiftDto
 import com.example.scheduleapp.data.remote.UpdateEventRequest
 import com.example.scheduleapp.data.remote.UpsertShiftRequest
@@ -25,8 +30,11 @@ import com.example.scheduleapp.ui.calendar.ShiftSchedule
 import com.example.scheduleapp.ui.calendar.ShiftType
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
+import okhttp3.Authenticator
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.Response as OkHttpResponse
+import okhttp3.Route
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Response
 import retrofit2.Retrofit
@@ -50,8 +58,34 @@ class CalendarRepository(
         return result.toAuthSession()
     }
 
+    suspend fun refreshSession(): AuthSession {
+        val current = AuthSessionManager.getSession()
+            ?: throw IOException("로그인 세션이 없습니다.")
+        val tokens = unwrap(service.refreshToken(RefreshTokenRequest(current.refreshToken)))
+        val updated = current.copy(
+            accessToken = tokens.accessToken,
+            refreshToken = tokens.refreshToken,
+            tokenType = tokens.tokenType
+        )
+        AuthSessionManager.saveSession(updated)
+        return updated
+    }
+
+    suspend fun logout() {
+        val current = AuthSessionManager.getSession() ?: return
+        runCatching {
+            unwrap(service.logout(LogoutRequest(current.refreshToken)))
+        }
+        AuthSessionManager.clearSession()
+        AuthSessionManager.clearPendingInviteToken()
+    }
+
     suspend fun createInvite(): CreateInviteResponse {
-        return unwrap(service.createInvite())
+        return unwrap(
+            service.createInvite(
+                CreateInviteRequest(channel = "KAKAO_TALK_SHARE")
+            )
+        )
     }
 
     suspend fun getInvite(inviteToken: String): InviteLookupResponse {
@@ -82,18 +116,11 @@ class CalendarRepository(
         title: String,
         note: String?
     ) {
-        val payload = ownerType.toEventPayload()
+        val request = buildEventRequest(ownerType, startDate, endDate, title, note)
         unwrap(
             service.createEvent(
                 groupId = CalendarApiConfig.groupId,
-                request = CreateEventRequest(
-                    title = title,
-                    startDate = startDate.toString(),
-                    endDate = endDate.toString(),
-                    subjectType = payload.subjectType,
-                    ownerUserId = payload.ownerUserId,
-                    note = note
-                )
+                request = request
             )
         )
     }
@@ -106,19 +133,12 @@ class CalendarRepository(
         title: String,
         note: String?
     ) {
-        val payload = ownerType.toEventPayload()
+        val request = buildEventRequest(ownerType, startDate, endDate, title, note)
         unwrap(
             service.updateEvent(
                 eventId = eventId,
                 groupId = CalendarApiConfig.groupId,
-                request = UpdateEventRequest(
-                    title = title,
-                    startDate = startDate.toString(),
-                    endDate = endDate.toString(),
-                    subjectType = payload.subjectType,
-                    ownerUserId = payload.ownerUserId,
-                    note = note
-                )
+                request = request.toUpdateRequest()
             )
         )
     }
@@ -161,6 +181,10 @@ class CalendarRepository(
         )
     }
 
+    suspend fun deleteShift(date: LocalDate): DeleteShiftResponse {
+        return unwrap(service.deleteShift(date.toString(), CalendarApiConfig.groupId))
+    }
+
     private suspend fun <T> unwrap(response: Response<ApiEnvelope<T>>): T {
         val body = response.body()
         if (response.isSuccessful && body?.success == true && body.data != null) {
@@ -172,6 +196,24 @@ class CalendarRepository(
             else -> errorParser.parse(response) ?: "서버 요청에 실패했습니다."
         }
         throw IOException(message)
+    }
+
+    private fun buildEventRequest(
+        ownerType: EventOwnerType,
+        startDate: LocalDate,
+        endDate: LocalDate,
+        title: String,
+        note: String?
+    ): CreateEventRequest {
+        val payload = ownerType.toEventPayload()
+        return CreateEventRequest(
+            title = title,
+            startDate = startDate.toString(),
+            endDate = endDate.toString(),
+            subjectType = payload.subjectType,
+            ownerUserId = payload.ownerUserId,
+            note = note
+        )
     }
 
     private fun CalendarMonthResponse.toDomain(): CalendarMonthData {
@@ -231,9 +273,20 @@ class CalendarRepository(
             EventOwnerType.PARTNER -> EventPayload(
                 subjectType = "PERSONAL",
                 ownerUserId = CalendarApiConfig.partnerUserId
-                    ?: throw IOException("PARTNER 일정을 저장하려면 API_PARTNER_USER_ID 설정이 필요합니다.")
+                    ?: throw IOException("파트너 연결이 완료된 뒤 상대 일정으로 저장할 수 있습니다.")
             )
         }
+    }
+
+    private fun CreateEventRequest.toUpdateRequest(): UpdateEventRequest {
+        return UpdateEventRequest(
+            title = title,
+            startDate = startDate,
+            endDate = endDate,
+            subjectType = subjectType,
+            ownerUserId = ownerUserId,
+            note = note
+        )
     }
 
     private data class EventPayload(
@@ -264,6 +317,8 @@ class CalendarRepository(
     }
 
     companion object {
+        private val refreshLock = Any()
+
         private fun createService(): CalendarApiService {
             val logger = HttpLoggingInterceptor().apply {
                 level = HttpLoggingInterceptor.Level.BASIC
@@ -271,6 +326,8 @@ class CalendarRepository(
             val moshi = Moshi.Builder()
                 .addLast(KotlinJsonAdapterFactory())
                 .build()
+            val authService = createRetrofit(moshi)
+                .create(CalendarApiService::class.java)
             val okHttpClient = OkHttpClient.Builder()
                 .addInterceptor { chain ->
                     val session = AuthSessionManager.getSession()
@@ -285,15 +342,91 @@ class CalendarRepository(
 
                     chain.proceed(requestBuilder.build())
                 }
+                .authenticator(SessionRefreshAuthenticator(authService))
                 .addInterceptor(logger)
                 .build()
 
+            return createRetrofit(moshi, okHttpClient)
+                .create(CalendarApiService::class.java)
+        }
+
+        private fun createRetrofit(
+            moshi: Moshi,
+            okHttpClient: OkHttpClient? = null
+        ): Retrofit {
             return Retrofit.Builder()
                 .baseUrl(CalendarApiConfig.baseUrl)
-                .client(okHttpClient)
+                .apply {
+                    if (okHttpClient != null) {
+                        client(okHttpClient)
+                    }
+                }
                 .addConverterFactory(MoshiConverterFactory.create(moshi))
                 .build()
-                .create(CalendarApiService::class.java)
+        }
+
+        private fun AuthTokenDto.applyTo(session: AuthSession): AuthSession {
+            return session.copy(
+                accessToken = accessToken,
+                refreshToken = refreshToken,
+                tokenType = tokenType
+            )
+        }
+    }
+
+    private class SessionRefreshAuthenticator(
+        private val authService: CalendarApiService
+    ) : Authenticator {
+        override fun authenticate(route: Route?, response: OkHttpResponse): Request? {
+            if (responseCount(response) >= 2) {
+                return null
+            }
+
+            val bearerToken = response.request.header("Authorization")
+
+            synchronized(refreshLock) {
+                val latestSession = AuthSessionManager.getSession() ?: return null
+                val latestHeader = "${latestSession.tokenType} ${latestSession.accessToken}"
+
+                if (bearerToken != null && bearerToken != latestHeader) {
+                    return response.request.newBuilder()
+                        .header("Authorization", latestHeader)
+                        .build()
+                }
+
+                val refreshResponse = runCatching {
+                    authService.refreshTokenCall(
+                        RefreshTokenRequest(latestSession.refreshToken)
+                    ).execute()
+                }.getOrNull() ?: return null
+
+                val body = refreshResponse.body()
+                val refreshedTokens = if (refreshResponse.isSuccessful && body?.success == true) {
+                    body.data
+                } else {
+                    null
+                } ?: run {
+                    AuthSessionManager.clearSession()
+                    AuthSessionManager.clearPendingInviteToken()
+                    return null
+                }
+
+                val updatedSession = refreshedTokens.applyTo(latestSession)
+                AuthSessionManager.saveSession(updatedSession)
+                return response.request.newBuilder()
+                    .header("Authorization", "${updatedSession.tokenType} ${updatedSession.accessToken}")
+                    .build()
+            }
+        }
+
+        private fun responseCount(response: OkHttpResponse): Int {
+            var current: OkHttpResponse? = response
+            var count = 1
+            while (current?.priorResponse != null) {
+                count += 1
+                current = current.priorResponse
+            }
+            return count
         }
     }
 }

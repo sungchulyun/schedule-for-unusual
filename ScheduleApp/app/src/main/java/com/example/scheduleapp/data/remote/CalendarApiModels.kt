@@ -104,6 +104,12 @@ data class MonthlyShiftRequest(
     val items: List<MonthlyShiftItemRequest>
 )
 
+data class DeleteShiftResponse(
+    val date: String,
+    val deleted: Boolean,
+    val deletedAt: String? = null
+)
+
 data class GroupMeResponse(
     val groupId: String,
     val members: List<GroupMemberDto> = emptyList()
@@ -119,6 +125,10 @@ data class GroupPermissionsDto(
     val canReadAllEvents: Boolean,
     val canEditAllEvents: Boolean,
     val canEditAllShifts: Boolean
+)
+
+data class CreateInviteRequest(
+    val channel: String
 )
 
 data class CreateInviteResponse(
@@ -155,6 +165,18 @@ data class AcceptInviteResponse(
     val accepted: Boolean,
     val members: List<GroupMemberDto>,
     val permissions: GroupPermissionsDto
+)
+
+data class RefreshTokenRequest(
+    val refreshToken: String
+)
+
+data class LogoutRequest(
+    val refreshToken: String
+)
+
+data class LogoutResponse(
+    val loggedOut: Boolean
 )
 
 data class MobileLoginExchangeRequest(
