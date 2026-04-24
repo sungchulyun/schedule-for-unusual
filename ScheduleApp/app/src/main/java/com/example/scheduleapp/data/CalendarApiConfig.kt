@@ -3,7 +3,7 @@ package com.example.scheduleapp.data
 object CalendarApiConfig {
     const val kakaoAppCallbackUri: String = "scheduleapp://auth/callback"
 
-    val baseUrl: String = "http://10.0.2.2:8080/".ensureTrailingSlash()
+    val baseUrl: String = "https://api.link-together.site".ensureTrailingSlash()
 
     val groupId: String?
         get() = AuthSessionManager.getSession()?.groupId?.ifBlank { null }
