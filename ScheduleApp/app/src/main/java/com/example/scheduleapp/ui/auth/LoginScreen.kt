@@ -60,13 +60,8 @@ fun LoginScreen(
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 Text(
-                    text = "ScheduleApp",
+                    text = "LinkTogether",
                     style = MaterialTheme.typography.headlineSmall
-                )
-                Text(
-                    text = "카카오 계정으로 시작하면 서비스용 토큰을 발급받아 바로 일정 기능으로 들어갑니다.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 if (!errorMessage.isNullOrBlank()) {
                     Surface(

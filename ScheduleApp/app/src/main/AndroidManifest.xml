@@ -46,6 +46,19 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data
+                    android:scheme="https"
+                    android:host="api.link-together.site"
+                    android:pathPrefix="/invites" />
+                <data
+                    android:scheme="https"
+                    android:host="link-together.site"
+                    android:pathPrefix="/invites" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
                     android:host="kakaolink"
                     android:scheme="${kakaoScheme}" />
             </intent-filter>
@@ -62,6 +75,20 @@
                     android:scheme="${kakaoScheme}" />
             </intent-filter>
         </activity>
+        <receiver
+            android:name=".widget.ScheduleMonthWidgetProvider"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="android.intent.action.DATE_CHANGED" />
+                <action android:name="android.intent.action.TIME_CHANGED" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+                <action android:name="android.intent.action.LOCALE_CHANGED" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/schedule_month_widget_info" />
+        </receiver>
     </application>
 
 </manifest>

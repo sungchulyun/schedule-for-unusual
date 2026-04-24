@@ -14,6 +14,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.lifecycleScope
 import com.example.scheduleapp.data.AuthSession
+import com.example.scheduleapp.data.CalendarApiConfig
 import com.example.scheduleapp.data.AuthSessionManager
 import com.example.scheduleapp.data.CalendarRepository
 import com.example.scheduleapp.data.remote.CreateInviteResponse
@@ -22,6 +23,7 @@ import com.example.scheduleapp.ui.auth.LoginScreen
 import com.example.scheduleapp.ui.calendar.CalendarScreen
 import com.example.scheduleapp.ui.invite.InviteAcceptScreen
 import com.example.scheduleapp.ui.theme.ScheduleAppTheme
+import com.example.scheduleapp.widget.ScheduleMonthWidgetContract
 import com.kakao.sdk.auth.model.OAuthToken
 import com.kakao.sdk.common.model.ClientError
 import com.kakao.sdk.common.model.ClientErrorCause
@@ -31,23 +33,26 @@ import com.kakao.sdk.template.model.Link
 import com.kakao.sdk.template.model.TextTemplate
 import com.kakao.sdk.user.UserApiClient
 import kotlinx.coroutines.launch
+import java.time.LocalDate
 
 class MainActivity : ComponentActivity() {
     private val repository by lazy { CalendarRepository() }
     private var latestInviteToken by mutableStateOf<String?>(null)
     private var latestLoginCode by mutableStateOf<String?>(null)
     private var latestLoginErrorMessage by mutableStateOf<String?>(null)
+    private var latestWidgetDate by mutableStateOf<LocalDate?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         AuthSessionManager.initialize(applicationContext)
-        captureIncomingLink(intent?.data)
+        captureIncomingIntent(intent)
         enableEdgeToEdge()
 
         setContent {
             var session by remember { mutableStateOf(AuthSessionManager.getSession()) }
             var loginErrorMessage by remember { mutableStateOf<String?>(latestLoginErrorMessage) }
             var pendingInviteToken by remember { mutableStateOf(AuthSessionManager.getPendingInviteToken()) }
+            var widgetOpenDate by remember { mutableStateOf(latestWidgetDate) }
             var inviteDetail by remember { mutableStateOf<InviteLookupResponse?>(null) }
             var inviteLoading by remember { mutableStateOf(false) }
             var inviteSubmitting by remember { mutableStateOf(false) }
@@ -74,6 +79,12 @@ class MainActivity : ComponentActivity() {
                 LaunchedEffect(latestLoginErrorMessage) {
                     if (!latestLoginErrorMessage.isNullOrBlank()) {
                         loginErrorMessage = latestLoginErrorMessage
+                    }
+                }
+
+                LaunchedEffect(latestWidgetDate) {
+                    if (latestWidgetDate != null) {
+                        widgetOpenDate = latestWidgetDate
                     }
                 }
 
@@ -190,6 +201,11 @@ class MainActivity : ComponentActivity() {
 
                     else -> {
                         CalendarScreen(
+                            requestedOpenDate = widgetOpenDate,
+                            onRequestedOpenDateConsumed = {
+                                widgetOpenDate = null
+                                latestWidgetDate = null
+                            },
                             showPartnerInviteAction = session?.partnerUserId == null,
                             onInvitePartner = {
                                 lifecycleScope.launch {
@@ -222,7 +238,17 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        captureIncomingLink(intent.data)
+        captureIncomingIntent(intent)
+    }
+
+    private fun captureIncomingIntent(intent: Intent?) {
+        captureIncomingLink(intent?.data)
+        latestWidgetDate = intent?.getStringExtra(ScheduleMonthWidgetContract.ExtraDate)
+            ?.trim()
+            ?.ifBlank { null }
+            ?.let { raw ->
+                runCatching { LocalDate.parse(raw) }.getOrNull()
+            } ?: latestWidgetDate
     }
 
     private fun captureIncomingLink(uri: Uri?) {
@@ -247,15 +273,21 @@ class MainActivity : ComponentActivity() {
         val isScheduleInviteLink = scheme == "scheduleapp" &&
             host == "invite" &&
             pathSegments.firstOrNull() == "accept"
+        val isHttpsInviteLink = scheme == "https" &&
+            host in setOf("api.link-together.site", "link-together.site") &&
+            pathSegments.firstOrNull() == "invites"
         val isKakaoShareAppLink = scheme == BuildConfig.KAKAO_NATIVE_APP_KEY.takeIf { it.isNotBlank() }
             ?.let { "kakao$it" } &&
             host == "kakaolink"
 
-        if (!isScheduleInviteLink && !isKakaoShareAppLink) {
+        if (!isScheduleInviteLink && !isHttpsInviteLink && !isKakaoShareAppLink) {
             return null
         }
 
         return getQueryParameter("inviteToken")
+            ?.trim()
+            ?.ifBlank { null }
+            ?: pathSegments.getOrNull(1)
             ?.trim()
             ?.ifBlank { null }
     }
@@ -276,14 +308,15 @@ class MainActivity : ComponentActivity() {
         invite: CreateInviteResponse,
         inviterNickname: String?
     ) {
-        val title = "${inviterNickname?.ifBlank { null } ?: "파트너"}님이 ScheduleApp 초대를 보냈어요."
-        val description = "ScheduleApp에서 캘린더와 근무 스케줄을 함께 쓰려면 초대를 수락해 주세요."
+        val title = "${inviterNickname?.ifBlank { null } ?: "파트너"}님이 LinkTogether 초대를 보냈어요."
+        val description = "LinkTogether에서 캘린더와 근무 스케줄을 함께 쓰려면 초대를 수락해 주세요."
         val executionParams = mapOf("inviteToken" to invite.inviteToken)
+        val shareUrl = invite.bestShareUrl()
         val template = TextTemplate(
             text = "$title\n$description",
             link = Link(
-                webUrl = invite.shareUrl,
-                mobileWebUrl = invite.shareUrl,
+                webUrl = shareUrl,
+                mobileWebUrl = shareUrl,
                 androidExecutionParams = executionParams
             ),
             buttonTitle = "초대 수락",
@@ -291,8 +324,8 @@ class MainActivity : ComponentActivity() {
                 Button(
                     title = "초대 수락",
                     link = Link(
-                        webUrl = invite.shareUrl,
-                        mobileWebUrl = invite.shareUrl,
+                        webUrl = shareUrl,
+                        mobileWebUrl = shareUrl,
                         androidExecutionParams = executionParams
                     )
                 )
@@ -302,9 +335,23 @@ class MainActivity : ComponentActivity() {
         if (ShareClient.instance.isKakaoTalkSharingAvailable(this)) {
             ShareClient.instance.shareDefault(this, template) { sharingResult, error ->
                 when {
-                    error != null -> shareInviteViaText(title, description, invite)
+                    error != null -> {
+                        Toast.makeText(
+                            this,
+                            "카카오 링크 공유 설정을 확인해 주세요. 텍스트 링크로 공유합니다.",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                        shareInviteViaText(title, description, invite)
+                    }
                     sharingResult != null -> startActivity(sharingResult.intent)
-                    else -> shareInviteViaText(title, description, invite)
+                    else -> {
+                        Toast.makeText(
+                            this,
+                            "카카오 링크 공유를 열지 못해 텍스트 링크로 공유합니다.",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                        shareInviteViaText(title, description, invite)
+                    }
                 }
             }
             return
@@ -321,7 +368,7 @@ class MainActivity : ComponentActivity() {
         val message = buildString {
             appendLine(title)
             appendLine(description)
-            appendLine(invite.shareUrl)
+            appendLine("초대 링크: ${invite.bestShareUrl()}")
             appendLine()
             append("앱에서 바로 열기: ${invite.deepLink}")
         }
@@ -382,4 +429,12 @@ class MainActivity : ComponentActivity() {
             UserApiClient.instance.loginWithKakaoAccount(this, callback = callback)
         }
     }
+}
+
+private fun CreateInviteResponse.bestShareUrl(): String {
+    val candidate = shareUrl.trim()
+    if (candidate.startsWith("https://") && !candidate.contains("app.example.com")) {
+        return candidate
+    }
+    return "${CalendarApiConfig.inviteFallbackWebBaseUrl}/${inviteToken}"
 }

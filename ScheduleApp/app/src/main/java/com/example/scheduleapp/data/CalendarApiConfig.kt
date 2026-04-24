@@ -2,6 +2,7 @@ package com.example.scheduleapp.data
 
 object CalendarApiConfig {
     const val kakaoAppCallbackUri: String = "scheduleapp://auth/callback"
+    const val inviteFallbackWebBaseUrl: String = "https://api.link-together.site/invites"
 
     val baseUrl: String = "https://api.link-together.site".ensureTrailingSlash()
 

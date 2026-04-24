@@ -94,6 +94,8 @@ private data class CalendarEventBuckets(
 
 @Composable
 fun CalendarScreen(
+    requestedOpenDate: LocalDate? = null,
+    onRequestedOpenDateConsumed: () -> Unit = {},
     showPartnerInviteAction: Boolean = false,
     onInvitePartner: () -> Unit = {},
     onLogout: () -> Unit = {},
@@ -110,6 +112,14 @@ fun CalendarScreen(
 
     LaunchedEffect(currentMonth) {
         calendarViewModel.loadMonth(currentMonth)
+    }
+
+    LaunchedEffect(requestedOpenDate) {
+        val targetDate = requestedOpenDate ?: return@LaunchedEffect
+        selectedDate = targetDate
+        currentMonth = YearMonth.from(targetDate)
+        screenMode = CalendarScreenMode.DAY_DETAIL
+        onRequestedOpenDateConsumed()
     }
 
     val eventsByDate = remember(eventEntries) { buildEventsByDate(eventEntries) }

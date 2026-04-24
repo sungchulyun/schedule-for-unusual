@@ -1,3 +1,4 @@
 <resources>
-    <string name="app_name">ScheduleApp</string>
+    <string name="app_name">LinkTogether</string>
+    <string name="widget_month_calendar_description">월간 달력 일정 위젯</string>
 </resources>
