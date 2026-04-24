@@ -108,6 +108,22 @@ class GroupControllerIntegrationTest {
                 .andExpect(jsonPath("$.data.members.length()").value(2))
                 .andExpect(jsonPath("$.data.permissions.canEditAllEvents").value(true));
 
+        mockMvc.perform(post("/api/v1/groups/invites/accept")
+                        .header("X-Group-Id", "grp_owner")
+                        .header("X-User-Id", "usr_partner")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "inviteToken": "%s"
+                                }
+                                """.formatted(inviteToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.groupId").value("grp_owner"))
+                .andExpect(jsonPath("$.data.inviteId").exists())
+                .andExpect(jsonPath("$.data.accepted").value(true))
+                .andExpect(jsonPath("$.data.members.length()").value(2))
+                .andExpect(jsonPath("$.data.permissions.canEditAllEvents").value(true));
+
         mockMvc.perform(post("/api/v1/groups/partner")
                         .header("X-Group-Id", "grp_owner")
                         .header("X-User-Id", "usr_owner")
@@ -117,8 +133,10 @@ class GroupControllerIntegrationTest {
                                   "inviteCode": "%s"
                                 }
                                 """.formatted(inviteCode)))
-                .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.error.code").value("GROUP_INVITE_NOT_FOUND"));
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.groupId").value("grp_owner"))
+                .andExpect(jsonPath("$.data.accepted").value(true))
+                .andExpect(jsonPath("$.data.members.length()").value(2));
     }
 
     @Test

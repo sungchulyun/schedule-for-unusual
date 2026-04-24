@@ -139,6 +139,9 @@ public class GroupService {
         AppUser user = requireUser(authenticatedUser.userId());
         GroupInvite invite = resolveInvite(inviteCode, inviteToken);
 
+        if (invite.getStatus() == InviteStatus.ACCEPTED && user.getGroupId().equals(invite.getGroupId())) {
+            return buildAcceptInviteResponse(invite.getGroupId(), invite.getId());
+        }
         if (invite.getStatus() != InviteStatus.PENDING) {
             throw new BusinessException(ErrorCode.GROUP_INVITE_NOT_FOUND, "Invite is no longer available");
         }
@@ -160,14 +163,7 @@ public class GroupService {
         user.changeGroup(invite.getGroupId(), Instant.now());
         invite.markAccepted();
 
-        List<AppUser> updatedMembers = groupQueryService.loadGroupMembers(invite.getGroupId());
-        return new AcceptInviteResponse(
-                invite.getGroupId(),
-                invite.getId(),
-                true,
-                groupQueryService.toGroupMembers(updatedMembers),
-                groupQueryService.defaultPermissions()
-        );
+        return buildAcceptInviteResponse(invite.getGroupId(), invite.getId());
     }
 
     public List<GroupMemberResponse> getGroupMembers(String groupId) {
@@ -203,6 +199,17 @@ public class GroupService {
         if (!SUPPORTED_INVITE_CHANNEL.equals(channel)) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "channel must be " + SUPPORTED_INVITE_CHANNEL);
         }
+    }
+
+    private AcceptInviteResponse buildAcceptInviteResponse(String groupId, String inviteId) {
+        List<AppUser> members = groupQueryService.loadGroupMembers(groupId);
+        return new AcceptInviteResponse(
+                groupId,
+                inviteId,
+                true,
+                groupQueryService.toGroupMembers(members),
+                groupQueryService.defaultPermissions()
+        );
     }
 
     private String buildShareUrl(String inviteToken) {
