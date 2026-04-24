@@ -13,6 +13,15 @@ val localProperties = Properties().apply {
 }
 
 val kakaoNativeAppKey = (localProperties.getProperty("kakao.native.app.key") ?: "").trim()
+val releaseStoreFile = (localProperties.getProperty("release.storeFile") ?: "").trim()
+val releaseStorePassword = (localProperties.getProperty("release.storePassword") ?: "").trim()
+val releaseKeyAlias = (localProperties.getProperty("release.keyAlias") ?: "").trim()
+val releaseKeyPassword = (localProperties.getProperty("release.keyPassword") ?: "").trim()
+val hasReleaseSigning =
+    releaseStoreFile.isNotEmpty() &&
+        releaseStorePassword.isNotEmpty() &&
+        releaseKeyAlias.isNotEmpty() &&
+        releaseKeyPassword.isNotEmpty()
 
 android {
     namespace = "com.example.scheduleapp"
@@ -34,9 +43,23 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        if (hasReleaseSigning) {
+            create("release") {
+                storeFile = rootProject.file(releaseStoreFile)
+                storePassword = releaseStorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
+            if (hasReleaseSigning) {
+                signingConfig = signingConfigs.getByName("release")
+            }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
