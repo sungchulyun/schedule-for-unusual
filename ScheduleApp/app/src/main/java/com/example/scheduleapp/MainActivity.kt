@@ -53,6 +53,9 @@ class MainActivity : ComponentActivity() {
             var loginErrorMessage by remember { mutableStateOf<String?>(latestLoginErrorMessage) }
             var pendingInviteToken by remember { mutableStateOf(AuthSessionManager.getPendingInviteToken()) }
             var widgetOpenDate by remember { mutableStateOf(latestWidgetDate) }
+            var partnerConnectionCheckedUserId by remember {
+                mutableStateOf(session?.takeIf { it.partnerUserId != null }?.currentUserId)
+            }
             var inviteDetail by remember { mutableStateOf<InviteLookupResponse?>(null) }
             var inviteLoading by remember { mutableStateOf(false) }
             var inviteSubmitting by remember { mutableStateOf(false) }
@@ -114,9 +117,19 @@ class MainActivity : ComponentActivity() {
                 }
 
                 LaunchedEffect(session?.currentUserId, session?.partnerUserId) {
-                    if (session != null && session?.partnerUserId == null) {
-                        runCatching { repository.refreshPartnerUserId() }
-                        session = AuthSessionManager.getSession()
+                    val currentSession = session
+                    when {
+                        currentSession == null -> {
+                            partnerConnectionCheckedUserId = null
+                        }
+                        currentSession.partnerUserId != null -> {
+                            partnerConnectionCheckedUserId = currentSession.currentUserId
+                        }
+                        else -> {
+                            runCatching { repository.refreshPartnerUserId() }
+                            session = AuthSessionManager.getSession()
+                            partnerConnectionCheckedUserId = currentSession.currentUserId
+                        }
                     }
                 }
 
@@ -206,7 +219,9 @@ class MainActivity : ComponentActivity() {
                                 widgetOpenDate = null
                                 latestWidgetDate = null
                             },
-                            showPartnerInviteAction = session?.partnerUserId == null,
+                            showPartnerInviteAction =
+                                session?.partnerUserId == null &&
+                                    partnerConnectionCheckedUserId == session?.currentUserId,
                             onInvitePartner = {
                                 lifecycleScope.launch {
                                     runCatching {
