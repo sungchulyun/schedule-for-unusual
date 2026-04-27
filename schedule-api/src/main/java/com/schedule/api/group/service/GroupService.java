@@ -86,11 +86,18 @@ public class GroupService {
             throw new BusinessException(ErrorCode.GROUP_PARTNER_ALREADY_EXISTS, "Invite cannot be created when partner already exists");
         }
 
-        groupInviteRepository.findFirstByGroupIdAndStatusOrderByCreatedAtDesc(user.getGroupId(), InviteStatus.PENDING)
-                .filter(invite -> invite.getExpiresAt().isAfter(Instant.now()))
-                .ifPresent(GroupInvite::markExpired);
-
         Instant now = Instant.now();
+        GroupInvite existingInvite = groupInviteRepository
+                .findFirstByGroupIdAndStatusOrderByCreatedAtDesc(user.getGroupId(), InviteStatus.PENDING)
+                .orElse(null);
+
+        if (existingInvite != null) {
+            if (existingInvite.getExpiresAt().isAfter(now)) {
+                return buildCreateInviteResponse(existingInvite);
+            }
+            existingInvite.markExpired();
+        }
+
         GroupInvite invite = new GroupInvite(
                 idGenerator.generate("inv_"),
                 user.getGroupId(),
@@ -103,6 +110,10 @@ public class GroupService {
         );
 
         GroupInvite saved = groupInviteRepository.save(invite);
+        return buildCreateInviteResponse(saved);
+    }
+
+    private CreateInviteResponse buildCreateInviteResponse(GroupInvite saved) {
         return new CreateInviteResponse(
                 saved.getId(),
                 saved.getGroupId(),
@@ -139,6 +150,9 @@ public class GroupService {
         AppUser user = requireUser(authenticatedUser.userId());
         GroupInvite invite = resolveInvite(inviteCode, inviteToken);
 
+        if (invite.getCreatedByUserId().equals(user.getId())) {
+            throw new BusinessException(ErrorCode.GROUP_SELF_INVITE_NOT_ALLOWED);
+        }
         if (invite.getStatus() == InviteStatus.ACCEPTED && user.getGroupId().equals(invite.getGroupId())) {
             return buildAcceptInviteResponse(invite.getGroupId(), invite.getId());
         }

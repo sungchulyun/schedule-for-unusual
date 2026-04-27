@@ -84,6 +84,19 @@ class GroupControllerIntegrationTest {
         String inviteCode = inviteResponse.split("\"inviteCode\":\"")[1].split("\"")[0];
         String inviteToken = inviteResponse.split("\"inviteToken\":\"")[1].split("\"")[0];
 
+        mockMvc.perform(post("/api/v1/groups/invites")
+                        .header("X-Group-Id", "grp_owner")
+                        .header("X-User-Id", "usr_owner")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "channel": "KAKAO_TALK_SHARE"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.inviteCode").value(inviteCode))
+                .andExpect(jsonPath("$.data.inviteToken").value(inviteToken));
+
         mockMvc.perform(get("/api/v1/groups/invites/{inviteToken}", inviteToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.inviteId").exists())
@@ -91,6 +104,19 @@ class GroupControllerIntegrationTest {
                 .andExpect(jsonPath("$.data.inviter.userId").value("usr_owner"))
                 .andExpect(jsonPath("$.data.status").value("PENDING"))
                 .andExpect(jsonPath("$.data.requiresAuth").value(true));
+
+        mockMvc.perform(post("/api/v1/groups/invites/accept")
+                        .header("X-Group-Id", "grp_owner")
+                        .header("X-User-Id", "usr_owner")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "inviteToken": "%s"
+                                }
+                                """.formatted(inviteToken)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("GROUP_SELF_INVITE_NOT_ALLOWED"))
+                .andExpect(jsonPath("$.error.message").value("자기 자신은 초대할 수 없습니다."));
 
         mockMvc.perform(post("/api/v1/groups/invites/accept")
                         .header("X-Group-Id", "grp_partner")
@@ -133,10 +159,8 @@ class GroupControllerIntegrationTest {
                                   "inviteCode": "%s"
                                 }
                                 """.formatted(inviteCode)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.groupId").value("grp_owner"))
-                .andExpect(jsonPath("$.data.accepted").value(true))
-                .andExpect(jsonPath("$.data.members.length()").value(2));
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("GROUP_SELF_INVITE_NOT_ALLOWED"));
     }
 
     @Test
