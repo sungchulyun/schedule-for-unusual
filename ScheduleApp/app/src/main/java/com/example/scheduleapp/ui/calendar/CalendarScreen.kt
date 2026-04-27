@@ -98,6 +98,7 @@ fun CalendarScreen(
     onRequestedOpenDateConsumed: () -> Unit = {},
     showPartnerInviteAction: Boolean = false,
     onInvitePartner: () -> Unit = {},
+    onCalendarDataChanged: () -> Unit = {},
     onLogout: () -> Unit = {},
     calendarViewModel: CalendarViewModel = viewModel()
 ) {
@@ -203,6 +204,7 @@ fun CalendarScreen(
                         selectedDate = startDate
                         currentMonth = monthToRefresh
                         screenMode = CalendarScreenMode.MONTH
+                        onCalendarDataChanged()
                     }
                     if (eventId == null) {
                         calendarViewModel.createEvent(
@@ -231,20 +233,25 @@ fun CalendarScreen(
                     calendarViewModel.deleteEvent(
                         eventId = eventId,
                         monthToRefresh = currentMonth,
-                        onSuccess = { screenMode = CalendarScreenMode.MONTH }
+                        onSuccess = {
+                            screenMode = CalendarScreenMode.MONTH
+                            onCalendarDataChanged()
+                        }
                     )
                 },
                 onSaveShift = { shiftType ->
                     calendarViewModel.upsertShift(
                         date = selectedDate,
                         shiftType = shiftType,
-                        monthToRefresh = currentMonth
+                        monthToRefresh = currentMonth,
+                        onSuccess = onCalendarDataChanged
                     )
                 },
                 onDeleteShift = {
                     calendarViewModel.deleteShift(
                         date = selectedDate,
-                        monthToRefresh = currentMonth
+                        monthToRefresh = currentMonth,
+                        onSuccess = onCalendarDataChanged
                     )
                 }
             )
@@ -280,6 +287,7 @@ fun CalendarScreen(
                             selectedDate = startDate
                             currentMonth = targetMonth
                             screenMode = CalendarScreenMode.MONTH
+                            onCalendarDataChanged()
                         }
                     )
                 }
@@ -299,7 +307,10 @@ fun CalendarScreen(
                     calendarViewModel.saveMonthlyShifts(
                         month = currentMonth,
                         updatedMonthShifts = updatedMonthShifts,
-                        onSuccess = { screenMode = CalendarScreenMode.MONTH }
+                        onSuccess = {
+                            screenMode = CalendarScreenMode.MONTH
+                            onCalendarDataChanged()
+                        }
                     )
                 }
             )

@@ -24,6 +24,7 @@ import com.example.scheduleapp.ui.calendar.CalendarScreen
 import com.example.scheduleapp.ui.invite.InviteAcceptScreen
 import com.example.scheduleapp.ui.theme.ScheduleAppTheme
 import com.example.scheduleapp.widget.ScheduleMonthWidgetContract
+import com.example.scheduleapp.widget.ScheduleMonthWidgetProvider
 import com.kakao.sdk.auth.model.OAuthToken
 import com.kakao.sdk.common.model.ClientError
 import com.kakao.sdk.common.model.ClientErrorCause
@@ -235,6 +236,9 @@ class MainActivity : ComponentActivity() {
                                         ).show()
                                     }
                                 }
+                            },
+                            onCalendarDataChanged = {
+                                ScheduleMonthWidgetProvider.requestRefresh(applicationContext)
                             },
                             onLogout = {
                                 lifecycleScope.launch {

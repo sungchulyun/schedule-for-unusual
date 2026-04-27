@@ -37,6 +37,7 @@ class ScheduleMonthWidgetProvider : AppWidgetProvider() {
     override fun onReceive(context: Context, intent: Intent) {
         super.onReceive(context, intent)
         when (intent.action) {
+            ScheduleMonthWidgetContract.ActionRefresh,
             Intent.ACTION_DATE_CHANGED,
             Intent.ACTION_TIME_CHANGED,
             Intent.ACTION_TIMEZONE_CHANGED,
@@ -127,6 +128,16 @@ class ScheduleMonthWidgetProvider : AppWidgetProvider() {
                     PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
                 )
                 setOnClickPendingIntent(R.id.widget_header_root, openAppIntent)
+
+                val refreshIntent = PendingIntent.getBroadcast(
+                    context,
+                    appWidgetId + 20_000,
+                    Intent(context, ScheduleMonthWidgetProvider::class.java).apply {
+                        action = ScheduleMonthWidgetContract.ActionRefresh
+                    },
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                )
+                setOnClickPendingIntent(R.id.widget_refresh_button, refreshIntent)
 
                 repeat(WIDGET_ROWS) { rowIndex ->
                     val rowId = weekRowId(rowIndex)
