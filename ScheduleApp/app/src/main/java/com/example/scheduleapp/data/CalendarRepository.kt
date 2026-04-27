@@ -42,6 +42,7 @@ import retrofit2.converter.moshi.MoshiConverterFactory
 import java.io.IOException
 import java.time.LocalDate
 import java.time.YearMonth
+import java.util.concurrent.TimeUnit
 
 class CalendarRepository(
     private val service: CalendarApiService = createService()
@@ -65,7 +66,9 @@ class CalendarRepository(
         val updated = current.copy(
             accessToken = tokens.accessToken,
             refreshToken = tokens.refreshToken,
-            tokenType = tokens.tokenType
+            tokenType = tokens.tokenType,
+            accessTokenExpiresAtEpochMillis = tokens.accessTokenExpiresAtEpochMillis(),
+            refreshTokenExpiresAtEpochMillis = tokens.refreshTokenExpiresAtEpochMillis()
         )
         AuthSessionManager.saveSession(updated)
         return updated
@@ -228,6 +231,8 @@ class CalendarRepository(
             accessToken = tokens.accessToken,
             refreshToken = tokens.refreshToken,
             tokenType = tokens.tokenType,
+            accessTokenExpiresAtEpochMillis = tokens.accessTokenExpiresAtEpochMillis(),
+            refreshTokenExpiresAtEpochMillis = tokens.refreshTokenExpiresAtEpochMillis(),
             currentUserId = user.id,
             groupId = user.groupId,
             nickname = user.nickname,
@@ -318,6 +323,7 @@ class CalendarRepository(
 
     companion object {
         private val refreshLock = Any()
+        private val refreshBeforeExpiryMillis = TimeUnit.MINUTES.toMillis(1)
 
         private fun createService(): CalendarApiService {
             val logger = HttpLoggingInterceptor().apply {
@@ -330,11 +336,16 @@ class CalendarRepository(
                 .create(CalendarApiService::class.java)
             val okHttpClient = OkHttpClient.Builder()
                 .addInterceptor { chain ->
-                    val session = AuthSessionManager.getSession()
+                    val originalRequest = chain.request()
+                    val session = if (originalRequest.isRefreshRequest()) {
+                        AuthSessionManager.getSession()
+                    } else {
+                        refreshSessionIfNeeded(authService)
+                    }
                     val requestBuilder: Request.Builder = chain.request().newBuilder()
 
                     session?.accessToken?.takeIf { it.isNotBlank() }?.let {
-                        requestBuilder.header("Authorization", "Bearer $it")
+                        requestBuilder.header("Authorization", "${session.tokenType} $it")
                     }
                     session?.groupId?.takeIf { it.isNotBlank() }?.let {
                         requestBuilder.header("X-Group-Id", it)
@@ -369,8 +380,57 @@ class CalendarRepository(
             return session.copy(
                 accessToken = accessToken,
                 refreshToken = refreshToken,
-                tokenType = tokenType
+                tokenType = tokenType,
+                accessTokenExpiresAtEpochMillis = accessTokenExpiresAtEpochMillis(),
+                refreshTokenExpiresAtEpochMillis = refreshTokenExpiresAtEpochMillis()
             )
+        }
+
+        private fun AuthTokenDto.accessTokenExpiresAtEpochMillis(): Long {
+            return System.currentTimeMillis() + TimeUnit.SECONDS.toMillis(expiresIn.coerceAtLeast(0L))
+        }
+
+        private fun AuthTokenDto.refreshTokenExpiresAtEpochMillis(): Long {
+            return System.currentTimeMillis() + TimeUnit.SECONDS.toMillis(refreshTokenExpiresIn.coerceAtLeast(0L))
+        }
+
+        private fun refreshSessionIfNeeded(authService: CalendarApiService): AuthSession? {
+            val session = AuthSessionManager.getSession() ?: return null
+            if (!session.shouldRefreshAccessToken()) {
+                return session
+            }
+
+            synchronized(refreshLock) {
+                val latestSession = AuthSessionManager.getSession() ?: return null
+                if (!latestSession.shouldRefreshAccessToken()) {
+                    return latestSession
+                }
+
+                val refreshResponse = runCatching {
+                    authService.refreshTokenCall(
+                        RefreshTokenRequest(latestSession.refreshToken)
+                    ).execute()
+                }.getOrNull() ?: return latestSession
+
+                val body = refreshResponse.body()
+                val refreshedTokens = if (refreshResponse.isSuccessful && body?.success == true) {
+                    body.data
+                } else {
+                    null
+                } ?: return latestSession
+
+                return refreshedTokens.applyTo(latestSession)
+                    .also(AuthSessionManager::saveSession)
+            }
+        }
+
+        private fun AuthSession.shouldRefreshAccessToken(): Boolean {
+            val expiresAt = accessTokenExpiresAtEpochMillis
+            return expiresAt <= 0L || expiresAt - System.currentTimeMillis() <= refreshBeforeExpiryMillis
+        }
+
+        private fun Request.isRefreshRequest(): Boolean {
+            return url.encodedPath.endsWith("/api/v1/auth/refresh")
         }
     }
 

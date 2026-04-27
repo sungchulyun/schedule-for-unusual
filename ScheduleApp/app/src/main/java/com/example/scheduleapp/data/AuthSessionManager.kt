@@ -9,6 +9,8 @@ data class AuthSession(
     val accessToken: String,
     val refreshToken: String,
     val tokenType: String,
+    val accessTokenExpiresAtEpochMillis: Long,
+    val refreshTokenExpiresAtEpochMillis: Long,
     val currentUserId: String,
     val groupId: String,
     val nickname: String?,
@@ -21,6 +23,8 @@ object AuthSessionManager {
     private const val KeyAccessToken = "access_token"
     private const val KeyRefreshToken = "refresh_token"
     private const val KeyTokenType = "token_type"
+    private const val KeyAccessTokenExpiresAt = "access_token_expires_at"
+    private const val KeyRefreshTokenExpiresAt = "refresh_token_expires_at"
     private const val KeyCurrentUserId = "current_user_id"
     private const val KeyGroupId = "group_id"
     private const val KeyNickname = "nickname"
@@ -51,6 +55,8 @@ object AuthSessionManager {
             .putString(KeyAccessToken, session.accessToken)
             .putString(KeyRefreshToken, session.refreshToken)
             .putString(KeyTokenType, session.tokenType)
+            .putLong(KeyAccessTokenExpiresAt, session.accessTokenExpiresAtEpochMillis)
+            .putLong(KeyRefreshTokenExpiresAt, session.refreshTokenExpiresAtEpochMillis)
             .putString(KeyCurrentUserId, session.currentUserId)
             .putString(KeyGroupId, session.groupId)
             .putString(KeyNickname, session.nickname)
@@ -104,6 +110,8 @@ object AuthSessionManager {
         val accessToken = preferences.getString(KeyAccessToken, null)?.trim().orEmpty()
         val refreshToken = preferences.getString(KeyRefreshToken, null)?.trim().orEmpty()
         val tokenType = preferences.getString(KeyTokenType, null)?.trim().orEmpty()
+        val accessTokenExpiresAt = preferences.getLong(KeyAccessTokenExpiresAt, 0L)
+        val refreshTokenExpiresAt = preferences.getLong(KeyRefreshTokenExpiresAt, 0L)
         val currentUserId = preferences.getString(KeyCurrentUserId, null)?.trim().orEmpty()
         val groupId = preferences.getString(KeyGroupId, null)?.trim().orEmpty()
         val nickname = preferences.getString(KeyNickname, null)?.trim()?.ifBlank { null }
@@ -118,6 +126,8 @@ object AuthSessionManager {
             accessToken = accessToken,
             refreshToken = refreshToken,
             tokenType = tokenType,
+            accessTokenExpiresAtEpochMillis = accessTokenExpiresAt,
+            refreshTokenExpiresAtEpochMillis = refreshTokenExpiresAt,
             currentUserId = currentUserId,
             groupId = groupId,
             nickname = nickname,
