@@ -1,8 +1,8 @@
-﻿# ScheduleApp Android 카카오 로그인 연동 문서
+﻿# ScheduleApp Android 카카오 로그인 기능 문서
 
 ## 1. 문서 목적
 
-이 문서는 현재 `schedule-api` 백엔드 구현을 기준으로 Android 앱에서 `카카오 로그인만으로 회원가입 및 로그인`을 처리하기 위한 최신 연동 방식을 정리한다.
+이 문서는 현재 `schedule-api` 백엔드 구현을 기준으로 Android 앱에서 `카카오 로그인만으로 회원가입 및 로그인`을 처리하는 방식을 정리한다.
 
 본 문서는 아래 목적을 가진다.
 
@@ -10,6 +10,7 @@
 - 카카오 Android SDK 직접 로그인 방식을 기준 아키텍처로 정리한다.
 - 백엔드에서 이미 구현된 모바일 로그인 API와 브라우저 fallback 흐름을 구분한다.
 - 앱/백엔드 협업 시 필요한 작업 항목과 운영 메모를 정리한다.
+- 파트너 초대 흐름은 별도 문서인 `partner-invite-kakaotalk-share-flow.md`에서 관리한다.
 
 ## 2. 현재 기준 아키텍처
 
@@ -117,7 +118,6 @@ UserApiClient.instance.loginWithKakaoTalk(context) { token, error ->
 
     val kakaoAccessToken = token?.accessToken ?: return@loginWithKakaoTalk
 
-    // 백엔드로 access token 전달
     authApi.kakaoMobileLogin(
         KakaoMobileLoginRequest(accessToken = kakaoAccessToken)
     )
@@ -137,34 +137,6 @@ Content-Type: application/json
 }
 ```
 
-응답 예시:
-
-```json
-{
-  "success": true,
-  "data": {
-    "user": {
-      "id": "usr_01",
-      "oauthProvider": "KAKAO",
-      "oauthProviderUserId": "kakao-123",
-      "nickname": "홍길동",
-      "profileImageUrl": "https://image.example/profile.png",
-      "groupId": "grp_01",
-      "createdAt": "2026-04-22T01:00:00Z",
-      "updatedAt": "2026-04-22T01:00:00Z"
-    },
-    "tokens": {
-      "accessToken": "...",
-      "refreshToken": "...",
-      "tokenType": "Bearer",
-      "expiresIn": 3600,
-      "refreshTokenExpiresIn": 1209600
-    },
-    "isNewUser": true
-  }
-}
-```
-
 ### 5.5 토큰 저장 원칙
 
 앱은 아래 원칙을 따른다.
@@ -174,19 +146,14 @@ Content-Type: application/json
 - 로그아웃 시 `/api/v1/auth/logout`을 호출한 뒤 로컬 토큰을 삭제한다.
 - 카카오 access token 자체를 장기 세션 저장소로 사용하지 않는다.
 
-## 6. 브라우저 fallback 흐름
+## 6. 운영 메모
 
-현재 구현에는 브라우저 기반 fallback도 남아 있다.
+현재 구현에서 주의할 점은 아래와 같다.
 
-흐름은 아래와 같다.
-
-1. 앱 또는 브라우저가 `GET /api/v1/auth/kakao/login?appRedirectUri=scheduleapp://auth/callback` 호출
-2. 백엔드가 카카오 인증 URL로 redirect
-3. 카카오가 `/api/v1/auth/kakao/callback`으로 `code`와 `state` 전달
-4. 백엔드가 카카오 사용자 인증 처리 후 앱 딥링크로 `loginCode` 전달
-5. 앱이 `POST /api/v1/auth/mobile/exchange`로 최종 JWT 교환
-
-이 경로는 기본 경로가 아니라 fallback 또는 테스트용 경로로 간주한다.
+- 서버는 현재 카카오 access token을 카카오 사용자 정보 API 호출로 검증한다.
+- 브라우저 fallback의 `state`와 `loginCode`는 메모리 기반 저장소를 사용한다.
+- 다중 인스턴스 운영에서는 Redis 같은 외부 저장소로 전환하는 것이 적절하다.
+- Android 앱은 가능한 한 SDK 직접 로그인 경로만 사용하도록 구현하는 것이 UX 측면에서 낫다.
 
 ## 7. 협업 체크리스트
 
@@ -210,37 +177,3 @@ Content-Type: application/json
 - [ ] access token 첨부 인터셉터 구현
 - [ ] refresh 재발급 처리 구현
 - [ ] 로그아웃 처리 구현
-
-### 7.3 공동 합의 필요 항목
-
-- [x] Android 기본 로그인 방식은 SDK 직접 로그인으로 확정
-- [ ] 개발/운영 API 도메인 확정
-- [ ] 카카오 개발자 콘솔 앱 키 및 redirect URI 환경별 정리
-- [ ] 로그인 실패 시 사용자 메시지 정책
-- [ ] 브라우저 fallback 유지 범위 결정
-
-## 8. 운영 메모
-
-현재 구현에서 주의할 점은 아래와 같다.
-
-- 서버는 현재 카카오 access token을 카카오 사용자 정보 API 호출로 검증한다.
-- 브라우저 fallback의 `state`와 `loginCode`는 메모리 기반 저장소를 사용한다.
-- 다중 인스턴스 운영에서는 Redis 같은 외부 저장소로 전환하는 것이 적절하다.
-- Android 앱은 가능한 한 SDK 직접 로그인 경로만 사용하도록 구현하는 것이 UX 측면에서 낫다.
-
-## 9. 최종 권장안
-
-현재 프로젝트 기준 최종 권장안은 아래와 같다.
-
-- Android 앱 로그인 수단은 `카카오 로그인` 하나만 제공한다.
-- Android 앱은 카카오 SDK 직접 로그인을 사용한다.
-- 백엔드는 `POST /api/v1/auth/kakao/mobile`로 카카오 access token을 받아 사용자 검증 후 JWT를 발급한다.
-- 이후 앱은 백엔드 JWT 기반으로 모든 인증을 처리한다.
-- 기존 브라우저 OAuth2 흐름은 fallback으로만 유지한다.
-
-이 방식이면 아래 요구사항을 만족할 수 있다.
-
-- 앱 안에서 자연스러운 로그인 UX 제공
-- 카카오 로그인만으로 가입/로그인 진행
-- 앱과 백엔드 책임 분리 명확화
-- 기존 JWT 인증 구조 재사용
