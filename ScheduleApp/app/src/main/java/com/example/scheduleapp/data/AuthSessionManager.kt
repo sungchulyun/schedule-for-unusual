@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
+import com.example.scheduleapp.ui.calendar.ShiftOwnerType
 
 data class AuthSession(
     val accessToken: String,
@@ -15,6 +16,7 @@ data class AuthSession(
     val groupId: String,
     val nickname: String?,
     val profileImageUrl: String?,
+    val defaultShiftOwnerType: ShiftOwnerType = ShiftOwnerType.ME,
     val partnerUserId: String? = null
 )
 
@@ -29,6 +31,7 @@ object AuthSessionManager {
     private const val KeyGroupId = "group_id"
     private const val KeyNickname = "nickname"
     private const val KeyProfileImageUrl = "profile_image_url"
+    private const val KeyDefaultShiftOwnerType = "default_shift_owner_type"
     private const val KeyPartnerUserId = "partner_user_id"
     private const val KeyPendingInviteToken = "pending_invite_token"
     private var appContext: Context? = null
@@ -61,6 +64,7 @@ object AuthSessionManager {
             .putString(KeyGroupId, session.groupId)
             .putString(KeyNickname, session.nickname)
             .putString(KeyProfileImageUrl, session.profileImageUrl)
+            .putString(KeyDefaultShiftOwnerType, session.defaultShiftOwnerType.name)
             .putString(KeyPartnerUserId, session.partnerUserId)
             .apply()
         currentSession = session
@@ -69,6 +73,11 @@ object AuthSessionManager {
     fun updatePartnerUserId(partnerUserId: String?) {
         val existing = getSession() ?: return
         saveSession(existing.copy(partnerUserId = partnerUserId))
+    }
+
+    fun updateDefaultShiftOwnerType(defaultShiftOwnerType: ShiftOwnerType) {
+        val existing = getSession() ?: return
+        saveSession(existing.copy(defaultShiftOwnerType = defaultShiftOwnerType))
     }
 
     fun clearSession() {
@@ -116,6 +125,11 @@ object AuthSessionManager {
         val groupId = preferences.getString(KeyGroupId, null)?.trim().orEmpty()
         val nickname = preferences.getString(KeyNickname, null)?.trim()?.ifBlank { null }
         val profileImageUrl = preferences.getString(KeyProfileImageUrl, null)?.trim()?.ifBlank { null }
+        val defaultShiftOwnerType = preferences.getString(KeyDefaultShiftOwnerType, null)
+            ?.trim()
+            ?.ifBlank { null }
+            ?.let { raw -> ShiftOwnerType.entries.firstOrNull { it.name == raw } }
+            ?: ShiftOwnerType.ME
         val partnerUserId = preferences.getString(KeyPartnerUserId, null)?.trim()?.ifBlank { null }
 
         if (accessToken.isBlank() || refreshToken.isBlank() || tokenType.isBlank() || currentUserId.isBlank() || groupId.isBlank()) {
@@ -132,6 +146,7 @@ object AuthSessionManager {
             groupId = groupId,
             nickname = nickname,
             profileImageUrl = profileImageUrl,
+            defaultShiftOwnerType = defaultShiftOwnerType,
             partnerUserId = partnerUserId
         )
     }

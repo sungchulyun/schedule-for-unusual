@@ -21,6 +21,7 @@ import com.example.scheduleapp.data.remote.CreateInviteResponse
 import com.example.scheduleapp.data.remote.InviteLookupResponse
 import com.example.scheduleapp.ui.auth.LoginScreen
 import com.example.scheduleapp.ui.calendar.CalendarScreen
+import com.example.scheduleapp.ui.calendar.ShiftOwnerType
 import com.example.scheduleapp.ui.invite.InviteAcceptScreen
 import com.example.scheduleapp.ui.theme.ScheduleAppTheme
 import com.example.scheduleapp.widget.ScheduleMonthWidgetContract
@@ -54,9 +55,7 @@ class MainActivity : ComponentActivity() {
             var loginErrorMessage by remember { mutableStateOf<String?>(latestLoginErrorMessage) }
             var pendingInviteToken by remember { mutableStateOf(AuthSessionManager.getPendingInviteToken()) }
             var widgetOpenDate by remember { mutableStateOf(latestWidgetDate) }
-            var partnerConnectionCheckedUserId by remember {
-                mutableStateOf(session?.takeIf { it.partnerUserId != null }?.currentUserId)
-            }
+            var partnerConnectionCheckedUserId by remember { mutableStateOf<String?>(null) }
             var inviteDetail by remember { mutableStateOf<InviteLookupResponse?>(null) }
             var inviteLoading by remember { mutableStateOf(false) }
             var inviteSubmitting by remember { mutableStateOf(false) }
@@ -106,7 +105,7 @@ class MainActivity : ComponentActivity() {
                             latestLoginCode = null
                             latestLoginErrorMessage = null
                             lifecycleScope.launch {
-                                runCatching { repository.refreshPartnerUserId() }
+                                runCatching { repository.refreshSessionContext() }
                                 session = AuthSessionManager.getSession()
                             }
                         }
@@ -123,11 +122,9 @@ class MainActivity : ComponentActivity() {
                         currentSession == null -> {
                             partnerConnectionCheckedUserId = null
                         }
-                        currentSession.partnerUserId != null -> {
-                            partnerConnectionCheckedUserId = currentSession.currentUserId
-                        }
+                        partnerConnectionCheckedUserId == currentSession.currentUserId -> Unit
                         else -> {
-                            runCatching { repository.refreshPartnerUserId() }
+                            runCatching { repository.refreshSessionContext() }
                             session = AuthSessionManager.getSession()
                             partnerConnectionCheckedUserId = currentSession.currentUserId
                         }
@@ -167,7 +164,7 @@ class MainActivity : ComponentActivity() {
                                         session = newSession
                                         loginErrorMessage = null
                                         lifecycleScope.launch {
-                                            runCatching { repository.refreshPartnerUserId() }
+                                            runCatching { repository.refreshSessionContext() }
                                             session = AuthSessionManager.getSession()
                                         }
                                     },
@@ -192,7 +189,7 @@ class MainActivity : ComponentActivity() {
                                 lifecycleScope.launch {
                                     runCatching {
                                         repository.acceptInvite(token)
-                                        repository.refreshPartnerUserId()
+                                        repository.refreshSessionContext()
                                     }.onSuccess {
                                         clearInviteUiState()
                                         session = AuthSessionManager.getSession()
@@ -219,6 +216,11 @@ class MainActivity : ComponentActivity() {
                             onRequestedOpenDateConsumed = {
                                 widgetOpenDate = null
                                 latestWidgetDate = null
+                            },
+                            hasPartnerConnected = session?.partnerUserId != null,
+                            defaultShiftOwnerType = session?.defaultShiftOwnerType ?: ShiftOwnerType.ME,
+                            onSessionChanged = {
+                                session = AuthSessionManager.getSession()
                             },
                             showPartnerInviteAction =
                                 session?.partnerUserId == null &&

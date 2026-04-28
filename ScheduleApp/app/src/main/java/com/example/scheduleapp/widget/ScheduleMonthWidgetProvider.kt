@@ -16,6 +16,7 @@ import com.example.scheduleapp.data.CalendarRepository
 import com.example.scheduleapp.ui.calendar.CalendarEvent
 import com.example.scheduleapp.ui.calendar.EventOwnerType
 import com.example.scheduleapp.ui.calendar.ShiftSchedule
+import com.example.scheduleapp.ui.calendar.ShiftOwnerType
 import com.example.scheduleapp.ui.calendar.ShiftType
 import com.example.scheduleapp.ui.calendar.buildCalendarDays
 import com.example.scheduleapp.ui.calendar.buildEventsByDate
@@ -94,7 +95,9 @@ class ScheduleMonthWidgetProvider : AppWidgetProvider() {
             }
 
             val monthData = runCatching {
-                runBlocking { CalendarRepository().getMonth(month) }
+                val shiftOwnerType = session.defaultShiftOwnerType
+                    .availableOrFallback(hasPartnerConnected = session.partnerUserId != null)
+                runBlocking { CalendarRepository().getMonth(month, shiftOwnerType) }
             }.getOrNull()
 
             return WidgetMonthPayload(

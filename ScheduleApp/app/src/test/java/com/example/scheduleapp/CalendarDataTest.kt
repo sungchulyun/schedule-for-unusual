@@ -2,6 +2,7 @@ package com.example.scheduleapp
 
 import com.example.scheduleapp.ui.calendar.CalendarEvent
 import com.example.scheduleapp.ui.calendar.EventOwnerType
+import com.example.scheduleapp.ui.calendar.ShiftOwnerType
 import com.example.scheduleapp.ui.calendar.buildCalendarDays
 import com.example.scheduleapp.ui.calendar.buildEventsByDate
 import org.junit.Assert.assertEquals
@@ -63,5 +64,17 @@ class CalendarDataTest {
         val eventsByDate = buildEventsByDate(events)
 
         assertEquals(2, eventsByDate[date]?.size)
+    }
+
+    @Test
+    fun `partner shift owner falls back to me when partner is not connected`() {
+        assertEquals(
+            ShiftOwnerType.ME,
+            ShiftOwnerType.PARTNER.availableOrFallback(hasPartnerConnected = false)
+        )
+        assertEquals(
+            ShiftOwnerType.PARTNER,
+            ShiftOwnerType.PARTNER.availableOrFallback(hasPartnerConnected = true)
+        )
     }
 }

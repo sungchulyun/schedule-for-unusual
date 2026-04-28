@@ -12,6 +12,7 @@ import java.time.YearMonth
 
 data class CalendarRemoteState(
     val loadedMonth: YearMonth? = null,
+    val loadedShiftOwnerType: ShiftOwnerType? = null,
     val events: List<CalendarEvent> = emptyList(),
     val shifts: List<ShiftSchedule> = emptyList(),
     val isLoading: Boolean = false,
@@ -25,10 +26,11 @@ class CalendarViewModel(
     var uiState by mutableStateOf(CalendarRemoteState())
         private set
 
-    fun loadMonth(month: YearMonth, force: Boolean = false) {
+    fun loadMonth(month: YearMonth, shiftOwnerType: ShiftOwnerType, force: Boolean = false) {
         if (
             !force &&
             uiState.loadedMonth == month &&
+            uiState.loadedShiftOwnerType == shiftOwnerType &&
             !uiState.isLoading &&
             uiState.errorMessage == null
         ) {
@@ -38,13 +40,15 @@ class CalendarViewModel(
         viewModelScope.launch {
             uiState = uiState.copy(
                 loadedMonth = month,
+                loadedShiftOwnerType = shiftOwnerType,
                 isLoading = true,
                 errorMessage = null
             )
-            runCatching { repository.getMonth(month) }
+            runCatching { repository.getMonth(month, shiftOwnerType) }
                 .onSuccess { data ->
                     uiState = uiState.copy(
                         loadedMonth = month,
+                        loadedShiftOwnerType = shiftOwnerType,
                         events = data.events,
                         shifts = data.shifts,
                         isLoading = false
@@ -53,6 +57,7 @@ class CalendarViewModel(
                 .onFailure { throwable ->
                     uiState = uiState.copy(
                         loadedMonth = month,
+                        loadedShiftOwnerType = shiftOwnerType,
                         isLoading = false,
                         errorMessage = throwable.message ?: "월간 데이터를 불러오지 못했습니다."
                     )
@@ -134,6 +139,26 @@ class CalendarViewModel(
         uiState = uiState.copy(errorMessage = null)
     }
 
+    fun updateDefaultShiftOwnerType(
+        shiftOwnerType: ShiftOwnerType,
+        onSuccess: () -> Unit
+    ) {
+        viewModelScope.launch {
+            uiState = uiState.copy(isSubmitting = true, errorMessage = null)
+            runCatching { repository.updateDefaultShiftOwnerType(shiftOwnerType) }
+                .onSuccess {
+                    uiState = uiState.copy(isSubmitting = false)
+                    onSuccess()
+                }
+                .onFailure { throwable ->
+                    uiState = uiState.copy(
+                        isSubmitting = false,
+                        errorMessage = throwable.message ?: "표시 설정을 저장하지 못했습니다."
+                    )
+                }
+        }
+    }
+
     private fun submit(
         monthToRefresh: YearMonth,
         onSuccess: () -> Unit,
@@ -144,7 +169,11 @@ class CalendarViewModel(
             runCatching { action() }
                 .onSuccess {
                     uiState = uiState.copy(isSubmitting = false)
-                    loadMonth(monthToRefresh, force = true)
+                    loadMonth(
+                        month = monthToRefresh,
+                        shiftOwnerType = uiState.loadedShiftOwnerType ?: ShiftOwnerType.ME,
+                        force = true
+                    )
                     onSuccess()
                 }
                 .onFailure { throwable ->

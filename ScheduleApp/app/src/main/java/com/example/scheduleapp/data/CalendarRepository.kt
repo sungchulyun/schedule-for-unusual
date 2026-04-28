@@ -22,11 +22,13 @@ import com.example.scheduleapp.data.remote.MonthlyShiftItemRequest
 import com.example.scheduleapp.data.remote.MonthlyShiftRequest
 import com.example.scheduleapp.data.remote.RefreshTokenRequest
 import com.example.scheduleapp.data.remote.ShiftDto
+import com.example.scheduleapp.data.remote.UpdateUserSettingsRequest
 import com.example.scheduleapp.data.remote.UpdateEventRequest
 import com.example.scheduleapp.data.remote.UpsertShiftRequest
 import com.example.scheduleapp.ui.calendar.CalendarEvent
 import com.example.scheduleapp.ui.calendar.EventOwnerType
 import com.example.scheduleapp.ui.calendar.ShiftSchedule
+import com.example.scheduleapp.ui.calendar.ShiftOwnerType
 import com.example.scheduleapp.ui.calendar.ShiftType
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
@@ -96,20 +98,65 @@ class CalendarRepository(
     }
 
     suspend fun acceptInvite(inviteToken: String): AcceptInviteResponse {
-        return unwrap(service.acceptInvite(AcceptInviteRequest(inviteToken = inviteToken)))
+        val response = unwrap(service.acceptInvite(AcceptInviteRequest(inviteToken = inviteToken)))
+        response.tokens?.let { tokens ->
+            val current = AuthSessionManager.getSession()
+            if (current != null) {
+                AuthSessionManager.saveSession(
+                    current.copy(
+                        accessToken = tokens.accessToken,
+                        refreshToken = tokens.refreshToken,
+                        tokenType = tokens.tokenType,
+                        accessTokenExpiresAtEpochMillis = tokens.accessTokenExpiresAtEpochMillis(),
+                        refreshTokenExpiresAtEpochMillis = tokens.refreshTokenExpiresAtEpochMillis(),
+                        groupId = response.groupId,
+                        partnerUserId = response.partnerUserId(current.currentUserId)
+                    )
+                )
+            }
+        }
+        return response
     }
 
-    suspend fun getMonth(month: YearMonth): CalendarMonthData {
-        val data = unwrap(service.getCalendarMonth(month.year, month.monthValue, CalendarApiConfig.groupId))
+    suspend fun getMonth(month: YearMonth, shiftOwnerType: ShiftOwnerType): CalendarMonthData {
+        val data = unwrap(
+            service.getCalendarMonth(
+                month.year,
+                month.monthValue,
+                shiftOwnerType.name,
+                CalendarApiConfig.groupId
+            )
+        )
         return data.toDomain()
     }
 
-    suspend fun refreshPartnerUserId() {
+    suspend fun refreshSessionContext() {
+        val current = AuthSessionManager.getSession() ?: return
+        val profile = unwrap(service.getMyProfile())
         val group = unwrap(service.getMyGroup())
         val partnerUserId = group.members
-            .firstOrNull { it.userId != CalendarApiConfig.currentUserId }
+            .firstOrNull { it.userId != current.currentUserId }
             ?.userId
-        AuthSessionManager.updatePartnerUserId(partnerUserId)
+        AuthSessionManager.saveSession(
+            current.copy(
+                groupId = profile.groupId.ifBlank { current.groupId },
+                nickname = profile.nickname,
+                profileImageUrl = profile.profileImageUrl,
+                defaultShiftOwnerType = profile.defaultShiftOwnerType.toShiftOwnerType(),
+                partnerUserId = partnerUserId
+            )
+        )
+    }
+
+    suspend fun updateDefaultShiftOwnerType(shiftOwnerType: ShiftOwnerType): ShiftOwnerType {
+        val result = unwrap(
+            service.updateMySettings(
+                UpdateUserSettingsRequest(defaultShiftOwnerType = shiftOwnerType.name)
+            )
+        )
+        val updated = result.defaultShiftOwnerType.toShiftOwnerType()
+        AuthSessionManager.updateDefaultShiftOwnerType(updated)
+        return updated
     }
 
     suspend fun createEvent(
@@ -236,8 +283,13 @@ class CalendarRepository(
             currentUserId = user.id,
             groupId = user.groupId,
             nickname = user.nickname,
-            profileImageUrl = user.profileImageUrl
+            profileImageUrl = user.profileImageUrl,
+            defaultShiftOwnerType = user.defaultShiftOwnerType.toShiftOwnerType()
         )
+    }
+
+    private fun AcceptInviteResponse.partnerUserId(currentUserId: String): String? {
+        return members.firstOrNull { it.userId != currentUserId }?.userId
     }
 
     private fun EventDto.toDomain(): CalendarEvent? {
@@ -292,6 +344,10 @@ class CalendarRepository(
             ownerUserId = ownerUserId,
             note = note
         )
+    }
+
+    private fun String?.toShiftOwnerType(): ShiftOwnerType {
+        return ShiftOwnerType.entries.firstOrNull { it.name == this } ?: ShiftOwnerType.ME
     }
 
     private data class EventPayload(

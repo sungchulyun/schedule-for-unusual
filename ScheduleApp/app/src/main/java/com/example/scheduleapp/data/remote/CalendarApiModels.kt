@@ -29,6 +29,7 @@ data class UserProfileDto(
     val nickname: String,
     val profileImageUrl: String? = null,
     val groupId: String,
+    val defaultShiftOwnerType: String? = null,
     val createdAt: String,
     val updatedAt: String
 )
@@ -70,6 +71,7 @@ data class ShiftDto(
     val id: String,
     val groupId: String? = null,
     val date: String,
+    val ownerType: String? = null,
     val shiftType: String
 )
 
@@ -124,7 +126,9 @@ data class GroupMemberDto(
 data class GroupPermissionsDto(
     val canReadAllEvents: Boolean,
     val canEditAllEvents: Boolean,
-    val canEditAllShifts: Boolean
+    val canEditAllShifts: Boolean = false,
+    val canEditOwnShifts: Boolean = false,
+    val canReadAllShifts: Boolean = false
 )
 
 data class CreateInviteRequest(
@@ -164,7 +168,8 @@ data class AcceptInviteResponse(
     val inviteId: String,
     val accepted: Boolean,
     val members: List<GroupMemberDto>,
-    val permissions: GroupPermissionsDto
+    val permissions: GroupPermissionsDto,
+    val tokens: AuthTokenDto? = null
 )
 
 data class RefreshTokenRequest(
@@ -177,6 +182,14 @@ data class LogoutRequest(
 
 data class LogoutResponse(
     val loggedOut: Boolean
+)
+
+data class UpdateUserSettingsRequest(
+    val defaultShiftOwnerType: String
+)
+
+data class UpdateUserSettingsResponse(
+    val defaultShiftOwnerType: String
 )
 
 data class MobileLoginExchangeRequest(

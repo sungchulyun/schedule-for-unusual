@@ -96,6 +96,9 @@ private data class CalendarEventBuckets(
 fun CalendarScreen(
     requestedOpenDate: LocalDate? = null,
     onRequestedOpenDateConsumed: () -> Unit = {},
+    hasPartnerConnected: Boolean = false,
+    defaultShiftOwnerType: ShiftOwnerType = ShiftOwnerType.ME,
+    onSessionChanged: () -> Unit = {},
     showPartnerInviteAction: Boolean = false,
     onInvitePartner: () -> Unit = {},
     onCalendarDataChanged: () -> Unit = {},
@@ -106,13 +109,16 @@ fun CalendarScreen(
     var selectedDate by remember { mutableStateOf(LocalDate.now()) }
     var filters by remember { mutableStateOf(CalendarFilters()) }
     var screenMode by remember { mutableStateOf(CalendarScreenMode.MONTH) }
+    var selectedShiftOwnerType by remember(defaultShiftOwnerType, hasPartnerConnected) {
+        mutableStateOf(defaultShiftOwnerType.availableOrFallback(hasPartnerConnected))
+    }
 
     val remoteState = calendarViewModel.uiState
     val eventEntries = remoteState.events
     val shiftEntries = remoteState.shifts
 
-    LaunchedEffect(currentMonth) {
-        calendarViewModel.loadMonth(currentMonth)
+    LaunchedEffect(currentMonth, selectedShiftOwnerType) {
+        calendarViewModel.loadMonth(currentMonth, selectedShiftOwnerType)
     }
 
     LaunchedEffect(requestedOpenDate) {
@@ -166,7 +172,20 @@ fun CalendarScreen(
                         PartnerInviteSection(onInvitePartner = onInvitePartner)
                     }
 
-                    FilterSection(filters = filters, onFiltersChanged = { filters = it })
+                    FilterSection(
+                        filters = filters,
+                        onFiltersChanged = { filters = it },
+                        shiftOwnerType = selectedShiftOwnerType,
+                        savedDefaultShiftOwnerType = defaultShiftOwnerType.availableOrFallback(hasPartnerConnected),
+                        hasPartnerConnected = hasPartnerConnected,
+                        isSavingDefault = remoteState.isSubmitting,
+                        onShiftOwnerTypeChanged = { selectedShiftOwnerType = it },
+                        onSaveDefaultShiftOwnerType = {
+                            calendarViewModel.updateDefaultShiftOwnerType(selectedShiftOwnerType) {
+                                onSessionChanged()
+                            }
+                        }
+                    )
 
                     MonthCalendar(
                         modifier = Modifier.weight(1f),
@@ -193,6 +212,7 @@ fun CalendarScreen(
                 events = selectedDateEvents,
                 shift = selectedDateShift,
                 filters = filters,
+                shiftOwnerType = selectedShiftOwnerType,
                 isLoading = remoteState.isLoading,
                 isSubmitting = remoteState.isSubmitting,
                 errorMessage = remoteState.errorMessage,
@@ -401,44 +421,106 @@ private fun CalendarHeader(
 @Composable
 private fun FilterSection(
     filters: CalendarFilters,
-    onFiltersChanged: (CalendarFilters) -> Unit
+    onFiltersChanged: (CalendarFilters) -> Unit,
+    shiftOwnerType: ShiftOwnerType,
+    savedDefaultShiftOwnerType: ShiftOwnerType,
+    hasPartnerConnected: Boolean,
+    isSavingDefault: Boolean,
+    onShiftOwnerTypeChanged: (ShiftOwnerType) -> Unit,
+    onSaveDefaultShiftOwnerType: () -> Unit
 ) {
-    Row(
+    Column(
         modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
+        verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        Text(
-            text = "표시 필터",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold
-        )
         Row(
-            modifier = Modifier
-                .weight(1f)
-                .horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            FilterChip(
-                selected = filters.showMe,
-                onClick = { onFiltersChanged(filters.copy(showMe = !filters.showMe)) },
-                label = { Text("내 일정") }
+            Text(
+                text = "표시 필터",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold
             )
-            FilterChip(
-                selected = filters.showUs,
-                onClick = { onFiltersChanged(filters.copy(showUs = !filters.showUs)) },
-                label = { Text("우리 일정") }
-            )
-            FilterChip(
-                selected = filters.showPartner,
-                onClick = { onFiltersChanged(filters.copy(showPartner = !filters.showPartner)) },
-                label = { Text("상대 일정") }
-            )
-            FilterChip(
-                selected = filters.showShift,
-                onClick = { onFiltersChanged(filters.copy(showShift = !filters.showShift)) },
-                label = { Text("근무 스케줄") }
-            )
+            Row(
+                modifier = Modifier
+                    .weight(1f)
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                FilterChip(
+                    selected = filters.showMe,
+                    onClick = { onFiltersChanged(filters.copy(showMe = !filters.showMe)) },
+                    label = { Text("내 일정") }
+                )
+                FilterChip(
+                    selected = filters.showUs,
+                    onClick = { onFiltersChanged(filters.copy(showUs = !filters.showUs)) },
+                    label = { Text("우리 일정") }
+                )
+                FilterChip(
+                    selected = filters.showPartner,
+                    onClick = { onFiltersChanged(filters.copy(showPartner = !filters.showPartner)) },
+                    label = { Text("상대 일정") }
+                )
+                FilterChip(
+                    selected = filters.showShift,
+                    onClick = { onFiltersChanged(filters.copy(showShift = !filters.showShift)) },
+                    label = { Text("근무 스케줄") }
+                )
+            }
+        }
+
+        if (filters.showShift) {
+            Surface(
+                shape = RoundedCornerShape(18.dp),
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp, vertical = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text(
+                        text = "현재 표시 중인 근무: ${shiftOwnerType.label}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Row(
+                        modifier = Modifier.horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        FilterChip(
+                            selected = shiftOwnerType == ShiftOwnerType.ME,
+                            onClick = { onShiftOwnerTypeChanged(ShiftOwnerType.ME) },
+                            label = { Text("내 근무") }
+                        )
+                        if (hasPartnerConnected) {
+                            FilterChip(
+                                selected = shiftOwnerType == ShiftOwnerType.PARTNER,
+                                onClick = { onShiftOwnerTypeChanged(ShiftOwnerType.PARTNER) },
+                                label = { Text("상대 근무") }
+                            )
+                        }
+                    }
+                    if (shiftOwnerType != savedDefaultShiftOwnerType) {
+                        OutlinedButton(
+                            onClick = onSaveDefaultShiftOwnerType,
+                            enabled = !isSavingDefault
+                        ) {
+                            Text("현재 선택을 기본값으로 저장")
+                        }
+                    } else {
+                        Text(
+                            text = "기본 표시 대상: ${savedDefaultShiftOwnerType.label}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
         }
     }
 }
@@ -700,6 +782,7 @@ private fun DayDetailScreen(
     events: List<CalendarEvent>,
     shift: ShiftSchedule?,
     filters: CalendarFilters,
+    shiftOwnerType: ShiftOwnerType,
     isLoading: Boolean,
     isSubmitting: Boolean,
     errorMessage: String?,
@@ -759,6 +842,7 @@ private fun DayDetailScreen(
                 events = events,
                 shift = shift,
                 filters = filters,
+                shiftOwnerType = shiftOwnerType,
                 editingEventId = editingEventId,
                 onAddEvent = { editingEventId = NEW_EVENT_ID },
                 onEditEvent = { editingEventId = it.id }
@@ -791,6 +875,7 @@ private fun DayDetailScreen(
             ShiftRegistrationSection(
                 selectedDate = selectedDate,
                 hasExistingShift = shift != null,
+                shiftOwnerType = shiftOwnerType,
                 selectedShiftType = selectedShiftType,
                 onShiftTypeSelected = { selectedShiftType = it },
                 onSaveShift = {
@@ -1721,6 +1806,7 @@ private fun SelectedDateSummary(
     events: List<CalendarEvent>,
     shift: ShiftSchedule?,
     filters: CalendarFilters,
+    shiftOwnerType: ShiftOwnerType,
     editingEventId: String?,
     onAddEvent: () -> Unit,
     onEditEvent: (CalendarEvent) -> Unit
@@ -1757,7 +1843,7 @@ private fun SelectedDateSummary(
             if (filters.showShift && shift != null) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        text = "근무",
+                        text = shiftOwnerType.label,
                         style = MaterialTheme.typography.labelLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -1835,6 +1921,7 @@ private fun SelectedDateSummary(
 private fun ShiftRegistrationSection(
     selectedDate: LocalDate,
     hasExistingShift: Boolean,
+    shiftOwnerType: ShiftOwnerType,
     selectedShiftType: ShiftType?,
     onShiftTypeSelected: (ShiftType) -> Unit,
     onSaveShift: () -> Unit,
@@ -1855,7 +1942,9 @@ private fun ShiftRegistrationSection(
                 fontWeight = FontWeight.Bold
             )
             Text(
-                text = if (hasExistingShift) {
+                text = if (shiftOwnerType == ShiftOwnerType.PARTNER) {
+                    "상대 근무 보기에서는 수정할 수 없습니다. 내 근무 보기로 전환한 뒤 등록해 주세요."
+                } else if (hasExistingShift) {
                     "근무 유형을 선택하면 기존 스케줄을 덮어쓰고, 삭제 버튼으로 비울 수 있습니다."
                 } else {
                     "근무 유형을 선택하면 해당 날짜의 스케줄을 저장합니다."
@@ -1871,17 +1960,18 @@ private fun ShiftRegistrationSection(
                     InputChip(
                         selected = selectedShiftType == shiftType,
                         onClick = { onShiftTypeSelected(shiftType) },
+                        enabled = shiftOwnerType == ShiftOwnerType.ME,
                         label = { Text(shiftType.label) }
                     )
                 }
             }
             OutlinedButton(
                 onClick = onSaveShift,
-                enabled = selectedShiftType != null
+                enabled = selectedShiftType != null && shiftOwnerType == ShiftOwnerType.ME
             ) {
                 Text("스케줄 저장")
             }
-            if (hasExistingShift) {
+            if (hasExistingShift && shiftOwnerType == ShiftOwnerType.ME) {
                 OutlinedButton(
                     onClick = onDeleteShift,
                     modifier = Modifier.fillMaxWidth()

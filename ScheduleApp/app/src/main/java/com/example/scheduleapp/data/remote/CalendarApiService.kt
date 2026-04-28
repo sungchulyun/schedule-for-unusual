@@ -33,6 +33,14 @@ interface CalendarApiService {
         @Body request: LogoutRequest
     ): Response<ApiEnvelope<LogoutResponse>>
 
+    @GET("api/v1/users/me")
+    suspend fun getMyProfile(): Response<ApiEnvelope<UserProfileDto>>
+
+    @PATCH("api/v1/users/me/settings")
+    suspend fun updateMySettings(
+        @Body request: UpdateUserSettingsRequest
+    ): Response<ApiEnvelope<UpdateUserSettingsResponse>>
+
     @GET("api/v1/groups/me")
     suspend fun getMyGroup(): Response<ApiEnvelope<GroupMeResponse>>
 
@@ -55,12 +63,14 @@ interface CalendarApiService {
     suspend fun getCalendarMonth(
         @Query("year") year: Int,
         @Query("month") month: Int,
+        @Query("shiftOwnerType") shiftOwnerType: String?,
         @Header("X-Group-Id") groupId: String?
     ): Response<ApiEnvelope<CalendarMonthResponse>>
 
     @GET("api/v1/calendar/date/{date}")
     suspend fun getCalendarDate(
         @Path("date") date: String,
+        @Query("shiftOwnerType") shiftOwnerType: String?,
         @Header("X-Group-Id") groupId: String?
     ): Response<ApiEnvelope<CalendarDateResponse>>
 

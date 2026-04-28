@@ -60,6 +60,15 @@ enum class ShiftType(val label: String, val color: Color) {
     VACATION("휴가", Color(0xFFE25555))
 }
 
+enum class ShiftOwnerType(val label: String) {
+    ME("내 근무"),
+    PARTNER("상대 근무");
+
+    fun availableOrFallback(hasPartnerConnected: Boolean): ShiftOwnerType {
+        return if (this == PARTNER && !hasPartnerConnected) ME else this
+    }
+}
+
 fun ShiftType.calendarBadgeLabel(): String {
     return when (this) {
         ShiftType.VACATION -> label
