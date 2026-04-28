@@ -6,6 +6,7 @@ import java.util.List;
 public record CalendarDaySummaryResponse(
         LocalDate date,
         CalendarDayShiftResponse shift,
+        List<CalendarDayShiftResponse> shifts,
         List<CalendarDayEventResponse> events
 ) {
 }

@@ -9,7 +9,13 @@ import org.springframework.data.jpa.repository.Query;
 
 public interface ShiftScheduleRepository extends JpaRepository<ShiftSchedule, String> {
 
-    Optional<ShiftSchedule> findByGroupIdAndDateAndDeletedAtIsNull(String groupId, LocalDate date);
+    Optional<ShiftSchedule> findByGroupIdAndOwnerUserIdAndDateAndDeletedAtIsNull(
+            String groupId,
+            String ownerUserId,
+            LocalDate date
+    );
+
+    List<ShiftSchedule> findAllByGroupIdAndDateAndDeletedAtIsNullOrderByOwnerUserIdAsc(String groupId, LocalDate date);
 
     @Query("""
             select s
@@ -20,4 +26,20 @@ public interface ShiftScheduleRepository extends JpaRepository<ShiftSchedule, St
             order by s.date asc
             """)
     List<ShiftSchedule> findActiveShiftsInRange(String groupId, LocalDate startDate, LocalDate endDate);
+
+    @Query("""
+            select s
+            from ShiftSchedule s
+            where s.groupId = :groupId
+              and s.ownerUserId = :ownerUserId
+              and s.deletedAt is null
+              and s.date between :startDate and :endDate
+            order by s.date asc
+            """)
+    List<ShiftSchedule> findActiveShiftsInRangeByOwnerUserId(
+            String groupId,
+            String ownerUserId,
+            LocalDate startDate,
+            LocalDate endDate
+    );
 }

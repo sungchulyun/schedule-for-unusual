@@ -38,21 +38,23 @@ public class ShiftService {
         validateYearMonth(year, month);
         YearMonth yearMonth = YearMonth.of(year, month);
 
-        List<ShiftResponse> items = shiftScheduleRepository.findActiveShiftsInRange(
+        List<ShiftResponse> items = shiftScheduleRepository.findActiveShiftsInRangeByOwnerUserId(
                         context.groupId(),
+                        context.userId(),
                         yearMonth.atDay(1),
                         yearMonth.atEndOfMonth()
                 )
                 .stream()
-                .map(this::toResponse)
+                .map(shift -> toResponse(shift, context.userId()))
                 .toList();
 
         return new ShiftMonthResponse(year, month, items);
     }
 
     public ShiftDateResponse getDateShift(RequestContext context, LocalDate date) {
-        ShiftResponse item = shiftScheduleRepository.findByGroupIdAndDateAndDeletedAtIsNull(context.groupId(), date)
-                .map(this::toResponse)
+        ShiftResponse item = shiftScheduleRepository
+                .findByGroupIdAndOwnerUserIdAndDateAndDeletedAtIsNull(context.groupId(), context.userId(), date)
+                .map(shift -> toResponse(shift, context.userId()))
                 .orElse(null);
 
         return new ShiftDateResponse(date, item);
@@ -62,7 +64,8 @@ public class ShiftService {
     public ShiftResponse upsertShift(RequestContext context, LocalDate date, UpsertShiftRequest request) {
         Instant now = Instant.now();
 
-        ShiftSchedule shift = shiftScheduleRepository.findByGroupIdAndDateAndDeletedAtIsNull(context.groupId(), date)
+        ShiftSchedule shift = shiftScheduleRepository
+                .findByGroupIdAndOwnerUserIdAndDateAndDeletedAtIsNull(context.groupId(), context.userId(), date)
                 .map(existing -> {
                     existing.update(request.shiftType(), context.userId(), now);
                     return existing;
@@ -71,6 +74,7 @@ public class ShiftService {
                         idGenerator.generate("sft_"),
                         context.groupId(),
                         date,
+                        context.userId(),
                         request.shiftType(),
                         context.userId(),
                         context.userId(),
@@ -79,7 +83,7 @@ public class ShiftService {
                         null
                 ));
 
-        return toResponse(shiftScheduleRepository.save(shift));
+        return toResponse(shiftScheduleRepository.save(shift), context.userId());
     }
 
     @Transactional
@@ -105,7 +109,12 @@ public class ShiftService {
         }
 
         Instant now = Instant.now();
-        List<ShiftSchedule> existingShifts = shiftScheduleRepository.findActiveShiftsInRange(context.groupId(), startDate, endDate);
+        List<ShiftSchedule> existingShifts = shiftScheduleRepository.findActiveShiftsInRangeByOwnerUserId(
+                context.groupId(),
+                context.userId(),
+                startDate,
+                endDate
+        );
         for (ShiftSchedule existingShift : existingShifts) {
             existingShift.softDelete(context.userId(), now);
         }
@@ -116,6 +125,7 @@ public class ShiftService {
                     idGenerator.generate("sft_"),
                     context.groupId(),
                     item.date(),
+                    context.userId(),
                     item.shiftType(),
                     context.userId(),
                     context.userId(),
@@ -123,7 +133,7 @@ public class ShiftService {
                     now,
                     null
             );
-            savedItems.add(toResponse(shiftScheduleRepository.save(shift)));
+            savedItems.add(toResponse(shiftScheduleRepository.save(shift), context.userId()));
         }
 
         return new MonthlyShiftResponse(year, month, existingShifts.size(), savedItems);
@@ -131,7 +141,8 @@ public class ShiftService {
 
     @Transactional
     public DeleteShiftResponse deleteShift(RequestContext context, LocalDate date) {
-        ShiftSchedule shift = shiftScheduleRepository.findByGroupIdAndDateAndDeletedAtIsNull(context.groupId(), date)
+        ShiftSchedule shift = shiftScheduleRepository
+                .findByGroupIdAndOwnerUserIdAndDateAndDeletedAtIsNull(context.groupId(), context.userId(), date)
                 .orElseThrow(() -> new BusinessException(ErrorCode.SHIFT_NOT_FOUND));
 
         Instant deletedAt = Instant.now();
@@ -150,11 +161,13 @@ public class ShiftService {
         }
     }
 
-    private ShiftResponse toResponse(ShiftSchedule shiftSchedule) {
+    private ShiftResponse toResponse(ShiftSchedule shiftSchedule, String currentUserId) {
         return new ShiftResponse(
                 shiftSchedule.getId(),
                 shiftSchedule.getGroupId(),
                 shiftSchedule.getDate(),
+                shiftSchedule.getOwnerUserId(),
+                resolveOwnerType(shiftSchedule, currentUserId),
                 shiftSchedule.getShiftType(),
                 shiftSchedule.getCreatedByUserId(),
                 shiftSchedule.getUpdatedByUserId(),
@@ -162,5 +175,9 @@ public class ShiftService {
                 shiftSchedule.getUpdatedAt(),
                 shiftSchedule.getDeletedAt()
         );
+    }
+
+    private String resolveOwnerType(ShiftSchedule shiftSchedule, String currentUserId) {
+        return shiftSchedule.getOwnerUserId().equals(currentUserId) ? "ME" : "PARTNER";
     }
 }

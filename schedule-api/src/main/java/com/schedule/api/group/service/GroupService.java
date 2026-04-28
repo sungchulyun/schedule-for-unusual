@@ -3,6 +3,7 @@ package com.schedule.api.group.service;
 import com.schedule.api.auth.domain.AppUser;
 import com.schedule.api.auth.repository.AppUserRepository;
 import com.schedule.api.auth.security.AuthenticatedUser;
+import com.schedule.api.auth.service.AuthService;
 import com.schedule.api.common.exception.BusinessException;
 import com.schedule.api.common.exception.ErrorCode;
 import com.schedule.api.common.util.IdGenerator;
@@ -31,6 +32,7 @@ public class GroupService {
     private final AppUserRepository appUserRepository;
     private final GroupInviteRepository groupInviteRepository;
     private final GroupQueryService groupQueryService;
+    private final AuthService authService;
     private final IdGenerator idGenerator;
     private final String inviteWebBaseUrl;
     private final String inviteDeepLinkBaseUrl;
@@ -39,6 +41,7 @@ public class GroupService {
             AppUserRepository appUserRepository,
             GroupInviteRepository groupInviteRepository,
             GroupQueryService groupQueryService,
+            AuthService authService,
             IdGenerator idGenerator,
             @Value("${app.group.invite.web-base-url:https://app.example.com/invites}") String inviteWebBaseUrl,
             @Value("${app.group.invite.deep-link-base-url:scheduleapp://invite/accept}") String inviteDeepLinkBaseUrl
@@ -46,6 +49,7 @@ public class GroupService {
         this.appUserRepository = appUserRepository;
         this.groupInviteRepository = groupInviteRepository;
         this.groupQueryService = groupQueryService;
+        this.authService = authService;
         this.idGenerator = idGenerator;
         this.inviteWebBaseUrl = inviteWebBaseUrl;
         this.inviteDeepLinkBaseUrl = inviteDeepLinkBaseUrl;
@@ -154,7 +158,7 @@ public class GroupService {
             throw new BusinessException(ErrorCode.GROUP_SELF_INVITE_NOT_ALLOWED);
         }
         if (invite.getStatus() == InviteStatus.ACCEPTED && user.getGroupId().equals(invite.getGroupId())) {
-            return buildAcceptInviteResponse(invite.getGroupId(), invite.getId());
+            return buildAcceptInviteResponse(invite.getGroupId(), invite.getId(), user);
         }
         if (invite.getStatus() != InviteStatus.PENDING) {
             throw new BusinessException(ErrorCode.GROUP_INVITE_NOT_FOUND, "Invite is no longer available");
@@ -177,7 +181,7 @@ public class GroupService {
         user.changeGroup(invite.getGroupId(), Instant.now());
         invite.markAccepted();
 
-        return buildAcceptInviteResponse(invite.getGroupId(), invite.getId());
+        return buildAcceptInviteResponse(invite.getGroupId(), invite.getId(), user);
     }
 
     public List<GroupMemberResponse> getGroupMembers(String groupId) {
@@ -215,14 +219,15 @@ public class GroupService {
         }
     }
 
-    private AcceptInviteResponse buildAcceptInviteResponse(String groupId, String inviteId) {
+    private AcceptInviteResponse buildAcceptInviteResponse(String groupId, String inviteId, AppUser user) {
         List<AppUser> members = groupQueryService.loadGroupMembers(groupId);
         return new AcceptInviteResponse(
                 groupId,
                 inviteId,
                 true,
                 groupQueryService.toGroupMembers(members),
-                groupQueryService.defaultPermissions()
+                groupQueryService.defaultPermissions(),
+                authService.issueTokensForUser(user)
         );
     }
 

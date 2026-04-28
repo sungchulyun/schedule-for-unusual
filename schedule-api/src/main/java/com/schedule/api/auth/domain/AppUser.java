@@ -33,6 +33,10 @@ public class AppUser {
     private String groupId;
 
     @Enumerated(EnumType.STRING)
+    @Column(name = "default_shift_owner_type", length = 20, nullable = false)
+    private DefaultShiftOwnerType defaultShiftOwnerType = DefaultShiftOwnerType.ME;
+
+    @Enumerated(EnumType.STRING)
     @Column(length = 20, nullable = false)
     private UserStatus status;
 
@@ -56,12 +60,39 @@ public class AppUser {
             Instant createdAt,
             Instant updatedAt
     ) {
+        this(
+                id,
+                oauthProvider,
+                oauthProviderUserId,
+                nickname,
+                profileImageUrl,
+                groupId,
+                DefaultShiftOwnerType.ME,
+                status,
+                createdAt,
+                updatedAt
+        );
+    }
+
+    public AppUser(
+            String id,
+            OAuthProvider oauthProvider,
+            String oauthProviderUserId,
+            String nickname,
+            String profileImageUrl,
+            String groupId,
+            DefaultShiftOwnerType defaultShiftOwnerType,
+            UserStatus status,
+            Instant createdAt,
+            Instant updatedAt
+    ) {
         this.id = id;
         this.oauthProvider = oauthProvider;
         this.oauthProviderUserId = oauthProviderUserId;
         this.nickname = nickname;
         this.profileImageUrl = profileImageUrl;
         this.groupId = groupId;
+        this.defaultShiftOwnerType = defaultShiftOwnerType == null ? DefaultShiftOwnerType.ME : defaultShiftOwnerType;
         this.status = status;
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
@@ -75,6 +106,11 @@ public class AppUser {
 
     public void changeGroup(String groupId, Instant updatedAt) {
         this.groupId = groupId;
+        this.updatedAt = updatedAt;
+    }
+
+    public void updateDefaultShiftOwnerType(DefaultShiftOwnerType defaultShiftOwnerType, Instant updatedAt) {
+        this.defaultShiftOwnerType = defaultShiftOwnerType;
         this.updatedAt = updatedAt;
     }
 
@@ -100,6 +136,10 @@ public class AppUser {
 
     public String getGroupId() {
         return groupId;
+    }
+
+    public DefaultShiftOwnerType getDefaultShiftOwnerType() {
+        return defaultShiftOwnerType;
     }
 
     public UserStatus getStatus() {

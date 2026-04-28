@@ -78,6 +78,7 @@ Android 앱에서는 아래 순서로 구현하는 것을 권장한다.
 3. 로그인 성공 시 SDK에서 받은 카카오 access token을 추출한다.
 4. 앱은 백엔드 `POST /api/v1/auth/kakao/mobile` API를 호출한다.
 5. 응답으로 받은 `user + tokens + isNewUser`를 저장한다.
+   - `user.defaultShiftOwnerType`은 캘린더에서 `shiftOwnerType`을 생략했을 때 적용할 기본 근무 스케줄 표시 대상이다.
 6. 이후 모든 API 호출은 백엔드 JWT로 처리한다.
 
 즉, 앱에서는 더 이상 `/api/v1/auth/kakao/login`을 브라우저로 열 필요가 없다.

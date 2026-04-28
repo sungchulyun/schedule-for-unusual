@@ -2,6 +2,7 @@ package com.schedule.api.auth.controller;
 
 import static org.mockito.BDDMockito.given;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -58,7 +59,19 @@ class AuthControllerIntegrationTest {
                         .header("Authorization", "Bearer " + accessToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.oauthProvider").value("KAKAO"))
-                .andExpect(jsonPath("$.data.nickname").value("성철"));
+                .andExpect(jsonPath("$.data.nickname").value("성철"))
+                .andExpect(jsonPath("$.data.defaultShiftOwnerType").value("ME"));
+
+        mockMvc.perform(patch("/api/v1/users/me/settings")
+                        .header("Authorization", "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "defaultShiftOwnerType": "PARTNER"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.defaultShiftOwnerType").value("PARTNER"));
 
         String refreshedResponse = mockMvc.perform(post("/api/v1/auth/refresh")
                         .contentType(MediaType.APPLICATION_JSON)

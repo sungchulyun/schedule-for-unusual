@@ -132,7 +132,9 @@ class GroupControllerIntegrationTest {
                 .andExpect(jsonPath("$.data.inviteId").exists())
                 .andExpect(jsonPath("$.data.accepted").value(true))
                 .andExpect(jsonPath("$.data.members.length()").value(2))
-                .andExpect(jsonPath("$.data.permissions.canEditAllEvents").value(true));
+                .andExpect(jsonPath("$.data.permissions.canEditAllEvents").value(true))
+                .andExpect(jsonPath("$.data.tokens.accessToken").exists())
+                .andExpect(jsonPath("$.data.tokens.refreshToken").exists());
 
         mockMvc.perform(post("/api/v1/groups/invites/accept")
                         .header("X-Group-Id", "grp_owner")
@@ -148,7 +150,9 @@ class GroupControllerIntegrationTest {
                 .andExpect(jsonPath("$.data.inviteId").exists())
                 .andExpect(jsonPath("$.data.accepted").value(true))
                 .andExpect(jsonPath("$.data.members.length()").value(2))
-                .andExpect(jsonPath("$.data.permissions.canEditAllEvents").value(true));
+                .andExpect(jsonPath("$.data.permissions.canEditAllEvents").value(true))
+                .andExpect(jsonPath("$.data.tokens.accessToken").exists())
+                .andExpect(jsonPath("$.data.tokens.refreshToken").exists());
 
         mockMvc.perform(post("/api/v1/groups/partner")
                         .header("X-Group-Id", "grp_owner")

@@ -10,6 +10,7 @@ import com.schedule.api.auth.domain.UserStatus;
 import com.schedule.api.auth.dto.AuthResultResponse;
 import com.schedule.api.auth.dto.AuthTokenResponse;
 import com.schedule.api.auth.dto.LogoutResponse;
+import com.schedule.api.auth.dto.UpdateUserSettingsRequest;
 import com.schedule.api.auth.dto.UserProfileResponse;
 import com.schedule.api.auth.repository.AppUserRepository;
 import com.schedule.api.auth.repository.RefreshTokenRepository;
@@ -213,6 +214,18 @@ public class AuthService {
         return toProfile(user);
     }
 
+    @Transactional
+    public UserProfileResponse updateMySettings(AuthenticatedUser authenticatedUser, UpdateUserSettingsRequest request) {
+        AppUser user = appUserRepository.findById(authenticatedUser.userId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.AUTH_UNAUTHORIZED, "User not found"));
+        user.updateDefaultShiftOwnerType(request.defaultShiftOwnerType(), Instant.now());
+        return toProfile(user);
+    }
+
+    public AuthTokenResponse issueTokensForUser(AppUser user) {
+        return issueTokens(new AuthenticatedUser(user.getId(), user.getGroupId(), user.getNickname()));
+    }
+
     private AuthTokenResponse issueTokens(AuthenticatedUser authenticatedUser) {
         String accessToken = jwtTokenProvider.createAccessToken(authenticatedUser);
         JwtTokenProvider.RefreshTokenPayload refreshTokenPayload = jwtTokenProvider.createRefreshToken(authenticatedUser);
@@ -243,6 +256,7 @@ public class AuthService {
                 user.getNickname(),
                 user.getProfileImageUrl(),
                 user.getGroupId(),
+                user.getDefaultShiftOwnerType(),
                 user.getCreatedAt(),
                 user.getUpdatedAt()
         );

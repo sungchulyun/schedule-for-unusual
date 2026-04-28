@@ -1,6 +1,7 @@
 package com.schedule.api.calendar.controller;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -43,6 +44,17 @@ class CalendarControllerIntegrationTest {
                 Instant.now(),
                 Instant.now()
         ));
+        appUserRepository.save(new AppUser(
+                "usr_partner",
+                OAuthProvider.KAKAO,
+                "kakao-usr-partner",
+                "partner",
+                null,
+                "grp_calendar",
+                UserStatus.ACTIVE,
+                Instant.now(),
+                Instant.now()
+        ));
 
         mockMvc.perform(post("/api/v1/events")
                         .header("X-Group-Id", "grp_calendar")
@@ -68,6 +80,17 @@ class CalendarControllerIntegrationTest {
                                 {
                                   "shiftType": "DAY"
                                 }
+                """))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(put("/api/v1/shifts/2026-04-18")
+                        .header("X-Group-Id", "grp_calendar")
+                        .header("X-User-Id", "usr_partner")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "shiftType": "NIGHT"
+                                }
                                 """))
                 .andExpect(status().isOk());
 
@@ -81,12 +104,51 @@ class CalendarControllerIntegrationTest {
                 .andExpect(jsonPath("$.data.year").value(2026))
                 .andExpect(jsonPath("$.data.month").value(4))
                 .andExpect(jsonPath("$.data.filters.includeShifts").value(true))
+                .andExpect(jsonPath("$.data.filters.shiftOwnerType").value("ME"))
                 .andExpect(jsonPath("$.data.meta.groupId").value("grp_calendar"))
                 .andExpect(jsonPath("$.data.events[0].title").value("데이트"))
+                .andExpect(jsonPath("$.data.shifts.length()").value(1))
+                .andExpect(jsonPath("$.data.shifts[0].ownerUserId").value("usr_me"))
                 .andExpect(jsonPath("$.data.shifts[0].date").value("2026-04-18"))
                 .andExpect(jsonPath("$.data.days[17].date").value("2026-04-18"))
                 .andExpect(jsonPath("$.data.days[17].shift.shiftType").value("DAY"))
+                .andExpect(jsonPath("$.data.days[17].shifts.length()").value(1))
                 .andExpect(jsonPath("$.data.days[17].events[0].title").value("데이트"));
+
+        mockMvc.perform(get("/api/v1/calendar/month")
+                        .header("X-Group-Id", "grp_calendar")
+                        .header("X-User-Id", "usr_me")
+                        .param("year", "2026")
+                        .param("month", "4")
+                        .param("shiftOwnerType", "PARTNER"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.filters.shiftOwnerType").value("PARTNER"))
+                .andExpect(jsonPath("$.data.events[0].title").value("데이트"))
+                .andExpect(jsonPath("$.data.shifts.length()").value(1))
+                .andExpect(jsonPath("$.data.shifts[0].ownerUserId").value("usr_partner"))
+                .andExpect(jsonPath("$.data.days[17].shift.ownerType").value("PARTNER"))
+                .andExpect(jsonPath("$.data.days[17].shift.shiftType").value("NIGHT"));
+
+        mockMvc.perform(patch("/api/v1/users/me/settings")
+                        .header("X-Group-Id", "grp_calendar")
+                        .header("X-User-Id", "usr_me")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "defaultShiftOwnerType": "PARTNER"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.defaultShiftOwnerType").value("PARTNER"));
+
+        mockMvc.perform(get("/api/v1/calendar/month")
+                        .header("X-Group-Id", "grp_calendar")
+                        .header("X-User-Id", "usr_me")
+                        .param("year", "2026")
+                        .param("month", "4"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.filters.shiftOwnerType").value("PARTNER"))
+                .andExpect(jsonPath("$.data.shifts[0].ownerUserId").value("usr_partner"));
 
         mockMvc.perform(get("/api/v1/calendar/date/2026-04-18")
                         .header("X-Group-Id", "grp_calendar")
@@ -96,7 +158,18 @@ class CalendarControllerIntegrationTest {
                 .andExpect(jsonPath("$.data.date").value("2026-04-18"))
                 .andExpect(jsonPath("$.data.meta.currentUserId").value("usr_me"))
                 .andExpect(jsonPath("$.data.events[0].title").value("데이트"))
-                .andExpect(jsonPath("$.data.shift.shiftType").value("DAY"));
+                .andExpect(jsonPath("$.data.shift.shiftType").value("NIGHT"))
+                .andExpect(jsonPath("$.data.shifts.length()").value(1));
+
+        mockMvc.perform(get("/api/v1/calendar/date/2026-04-18")
+                        .header("X-Group-Id", "grp_calendar")
+                        .header("X-User-Id", "usr_me")
+                        .param("shiftOwnerType", "PARTNER"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.events[0].title").value("데이트"))
+                .andExpect(jsonPath("$.data.shift.ownerUserId").value("usr_partner"))
+                .andExpect(jsonPath("$.data.shift.shiftType").value("NIGHT"))
+                .andExpect(jsonPath("$.data.shifts.length()").value(1));
     }
 
     @Test

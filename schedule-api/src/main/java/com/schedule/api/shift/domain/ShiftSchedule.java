@@ -23,6 +23,9 @@ public class ShiftSchedule {
     @Column(nullable = false)
     private LocalDate date;
 
+    @Column(name = "owner_user_id", length = 40, nullable = false)
+    private String ownerUserId;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "shift_type", length = 20, nullable = false)
     private ShiftType shiftType;
@@ -49,6 +52,7 @@ public class ShiftSchedule {
             String id,
             String groupId,
             LocalDate date,
+            String ownerUserId,
             ShiftType shiftType,
             String createdByUserId,
             String updatedByUserId,
@@ -59,6 +63,7 @@ public class ShiftSchedule {
         this.id = id;
         this.groupId = groupId;
         this.date = date;
+        this.ownerUserId = ownerUserId;
         this.shiftType = shiftType;
         this.createdByUserId = createdByUserId;
         this.updatedByUserId = updatedByUserId;
@@ -90,6 +95,10 @@ public class ShiftSchedule {
 
     public LocalDate getDate() {
         return date;
+    }
+
+    public String getOwnerUserId() {
+        return ownerUserId;
     }
 
     public ShiftType getShiftType() {

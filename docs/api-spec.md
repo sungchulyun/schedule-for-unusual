@@ -14,10 +14,10 @@
   - 월별 근무 스케줄 일괄 저장
   - 월간 캘린더 통합 조회
   - 날짜 상세 조회
+  - FCM 등록 토큰 관리 및 푸시 알림 발송
 - 후속 범위
   - 그룹/파트너 연결
   - 정식 권한 검증
-  - FCM 등록 토큰 관리 및 푸시 알림 연동
 
 ## 2. 기본 원칙
 
@@ -105,10 +105,12 @@ X-Group-Id: grp_01J8ZP3TQ4X
 아래 API는 인증이 필요하다.
 
 - `/api/v1/users/me`
+- `/api/v1/users/me/settings`
 - `/api/v1/events/**`
 - `/api/v1/shifts/**`
 - `/api/v1/calendar/**`
 - `/api/v1/groups/**`
+- `/api/v1/notifications/**`
 
 인증 없이 허용되는 API:
 
@@ -174,6 +176,7 @@ DB 저장 기준의 절대값이다.
   "nickname": "성철",
   "profileImageUrl": "https://k.kakaocdn.net/...",
   "groupId": "grp_01J8ZP3TQ4X",
+  "defaultShiftOwnerType": "ME",
   "createdAt": "2026-04-18T01:00:00Z",
   "updatedAt": "2026-04-18T01:00:00Z"
 }
@@ -213,6 +216,8 @@ DB 저장 기준의 절대값이다.
   "id": "sft_01J8ZR7J9CB",
   "groupId": "grp_01J8ZP3TQ4X",
   "date": "2026-04-18",
+  "ownerUserId": "usr_01J8ZQ11ABC",
+  "ownerType": "ME",
   "shiftType": "DAY",
   "createdByUserId": "usr_01J8ZQ11ABC",
   "updatedByUserId": "usr_01J8ZQ11ABC",
@@ -229,6 +234,8 @@ DB 저장 기준의 절대값이다.
   "date": "2026-04-18",
   "shift": {
     "id": "sft_01J8ZR7J9CB",
+    "ownerUserId": "usr_01J8ZQ11ABC",
+    "ownerType": "ME",
     "shiftType": "DAY"
   },
   "events": [
@@ -315,6 +322,7 @@ DB 저장 기준의 절대값이다.
       "nickname": "성철",
       "profileImageUrl": "https://k.kakaocdn.net/...",
       "groupId": "grp_01J8ZP3TQ4X",
+      "defaultShiftOwnerType": "ME",
       "createdAt": "2026-04-18T01:00:00Z",
       "updatedAt": "2026-04-18T01:00:00Z"
     },
@@ -410,6 +418,37 @@ Location: scheduleapp://auth/callback?errorCode=AUTH_KAKAO_LOGIN_FAILED&error=ac
 ## 8.7 내 정보 조회
 
 - `GET /api/v1/users/me`
+
+응답의 `defaultShiftOwnerType`은 캘린더 조회에서 `shiftOwnerType`을 생략했을 때 사용할 기본 근무 스케줄 표시 대상이다.
+
+## 8.8 내 표시 설정 수정
+
+- `PATCH /api/v1/users/me/settings`
+
+요청 본문:
+
+```json
+{
+  "defaultShiftOwnerType": "PARTNER"
+}
+```
+
+설명:
+
+- 상근 등으로 본인 근무 스케줄을 기록할 필요가 없는 사용자는 `defaultShiftOwnerType`을 `PARTNER`로 저장할 수 있다.
+- 설정값은 `ME` 또는 `PARTNER`만 허용한다.
+- 설정 저장 후 캘린더 통합 조회에서 `shiftOwnerType`을 생략하면 저장된 기본값이 적용된다.
+
+응답 예시:
+
+```json
+{
+  "success": true,
+  "data": {
+    "defaultShiftOwnerType": "PARTNER"
+  }
+}
+```
 
 ## 9. 일정 API
 
@@ -621,7 +660,11 @@ Query Parameters:
 
 권한 원칙:
 
-- 같은 그룹에 속한 두 사용자는 그룹 내 모든 근무 스케줄을 생성/수정/삭제할 수 있다.
+- 같은 그룹에 속한 두 사용자는 각자의 근무 스케줄을 별도로 생성/수정/삭제할 수 있다.
+- 근무 스케줄 저장/수정/삭제 API는 기본적으로 현재 로그인 사용자의 스케줄에만 적용한다.
+- 월간 캘린더 조회는 `shiftOwnerType` 선택값에 따라 나 또는 상대방 중 한 명의 근무 스케줄만 일정과 함께 반환한다.
+- 한 사용자가 상근 등으로 근무 스케줄을 기록할 필요가 없는 경우, 사용자는 기본 근무 스케줄 표시 대상을 `PARTNER`로 설정할 수 있다.
+- 기본 표시 대상 설정이 `PARTNER`인 사용자는 캘린더 조회 시 `shiftOwnerType`을 생략해도 상대방 근무 스케줄이 기본으로 반환되어야 한다.
 
 ## 10.1 월간 근무 스케줄 조회
 
@@ -640,6 +683,8 @@ Query Parameters:
         "id": "sft_01",
         "groupId": "grp_01",
         "date": "2026-04-18",
+        "ownerUserId": "usr_me",
+        "ownerType": "ME",
         "shiftType": "DAY",
         "createdByUserId": "usr_me",
         "updatedByUserId": "usr_me",
@@ -667,6 +712,8 @@ Query Parameters:
       "id": "sft_01",
       "groupId": "grp_01",
       "date": "2026-04-18",
+      "ownerUserId": "usr_me",
+      "ownerType": "ME",
       "shiftType": "DAY",
       "createdByUserId": "usr_me",
       "updatedByUserId": "usr_me",
@@ -699,6 +746,8 @@ Query Parameters:
     "id": "sft_01",
     "groupId": "grp_01",
     "date": "2026-04-18",
+    "ownerUserId": "usr_me",
+    "ownerType": "ME",
     "shiftType": "DAY",
     "createdByUserId": "usr_me",
     "updatedByUserId": "usr_me",
@@ -744,6 +793,8 @@ Query Parameters:
         "id": "sft_01",
         "groupId": "grp_01",
         "date": "2026-04-01",
+        "ownerUserId": "usr_me",
+        "ownerType": "ME",
         "shiftType": "DAY",
         "createdByUserId": "usr_me",
         "updatedByUserId": "usr_me",
@@ -777,7 +828,11 @@ Query Parameters:
 
 ## 11.1 월간 캘린더 조회
 
-- `GET /api/v1/calendar/month?year=2026&month=4`
+- `GET /api/v1/calendar/month?year=2026&month=4&shiftOwnerType=ME`
+- `shiftOwnerType`은 `ME` 또는 `PARTNER`를 허용한다.
+- `shiftOwnerType`을 생략하면 현재 사용자의 기본 근무 스케줄 표시 대상 설정을 따른다.
+- 기본 설정이 없으면 `ME`로 처리한다.
+- 명시적으로 전달된 `shiftOwnerType`은 저장된 기본 설정보다 우선한다.
 
 응답 예시:
 
@@ -789,7 +844,8 @@ Query Parameters:
     "month": 4,
     "filters": {
       "ownerTypes": ["ME", "US", "PARTNER"],
-      "includeShifts": true
+      "includeShifts": true,
+      "shiftOwnerType": "ME"
     },
     "meta": {
       "groupId": "grp_01",
@@ -829,6 +885,8 @@ Query Parameters:
         "id": "sft_01",
         "groupId": "grp_01",
         "date": "2026-04-18",
+        "ownerUserId": "usr_me",
+        "ownerType": "ME",
         "shiftType": "DAY",
         "createdByUserId": "usr_me",
         "updatedByUserId": "usr_me",
@@ -842,8 +900,18 @@ Query Parameters:
         "date": "2026-04-18",
         "shift": {
           "id": "sft_01",
+          "ownerUserId": "usr_me",
+          "ownerType": "ME",
           "shiftType": "DAY"
         },
+        "shifts": [
+          {
+            "id": "sft_01",
+            "ownerUserId": "usr_me",
+            "ownerType": "ME",
+            "shiftType": "DAY"
+          }
+        ],
         "events": [
           {
             "id": "evt_01",
@@ -864,7 +932,11 @@ Query Parameters:
 
 ## 11.2 날짜 상세 조회
 
-- `GET /api/v1/calendar/date/{date}`
+- `GET /api/v1/calendar/date/{date}?shiftOwnerType=ME`
+- `shiftOwnerType`은 `ME` 또는 `PARTNER`를 허용한다.
+- `shiftOwnerType`을 생략하면 현재 사용자의 기본 근무 스케줄 표시 대상 설정을 따른다.
+- 기본 설정이 없으면 `ME`로 처리한다.
+- 명시적으로 전달된 `shiftOwnerType`은 저장된 기본 설정보다 우선한다.
 
 응답 예시:
 
@@ -881,6 +953,8 @@ Query Parameters:
       "id": "sft_01",
       "groupId": "grp_01",
       "date": "2026-04-18",
+      "ownerUserId": "usr_me",
+      "ownerType": "ME",
       "shiftType": "DAY",
       "createdByUserId": "usr_me",
       "updatedByUserId": "usr_me",
@@ -888,6 +962,21 @@ Query Parameters:
       "updatedAt": "2026-04-01T00:00:00Z",
       "deletedAt": null
     },
+    "shifts": [
+      {
+        "id": "sft_01",
+        "groupId": "grp_01",
+        "date": "2026-04-18",
+        "ownerUserId": "usr_me",
+        "ownerType": "ME",
+        "shiftType": "DAY",
+        "createdByUserId": "usr_me",
+        "updatedByUserId": "usr_me",
+        "createdAt": "2026-04-01T00:00:00Z",
+        "updatedAt": "2026-04-01T00:00:00Z",
+        "deletedAt": null
+      }
+    ],
     "events": [
       {
         "id": "evt_01",
@@ -926,9 +1015,83 @@ Query Parameters:
 }
 ```
 
-## 12. 유효성 검증 규칙
+## 12. 알림 API
 
-### 12.1 일정
+## 12.1 FCM 등록 토큰 저장
+
+- `POST /api/v1/notifications/fcm-token`
+
+설명:
+
+- 로그인한 사용자의 FCM 등록 토큰을 서버에 저장한다.
+- 같은 토큰이 이미 있으면 현재 사용자와 그룹 기준으로 소유 정보를 갱신한다.
+- 저장된 토큰은 일정 변경 알림과 일일 요약 알림 발송 대상 식별에 사용한다.
+
+요청 본문:
+
+```json
+{
+  "token": "fcm-registration-token",
+  "platform": "ANDROID"
+}
+```
+
+응답 예시:
+
+```json
+{
+  "success": true,
+  "data": {
+    "registered": true
+  }
+}
+```
+
+검증:
+
+- `token`은 필수이며 공백일 수 없다.
+- `token` 최대 길이는 512자다.
+- `platform` 최대 길이는 30자다.
+
+## 12.2 FCM 등록 토큰 삭제
+
+- `DELETE /api/v1/notifications/fcm-token`
+
+설명:
+
+- 로그인한 사용자의 FCM 등록 토큰을 삭제한다.
+- 요청 사용자가 소유한 토큰만 삭제한다.
+- 존재하지 않는 토큰이거나 다른 사용자의 토큰이면 성공 응답만 반환하고 삭제하지 않는다.
+
+요청 본문:
+
+```json
+{
+  "token": "fcm-registration-token"
+}
+```
+
+응답 예시:
+
+```json
+{
+  "success": true,
+  "data": null
+}
+```
+
+## 12.3 서버 발송 알림
+
+현재 백엔드는 아래 알림을 발송한다. FCM은 `app.fcm.enabled=true`이고 Firebase 서비스 계정 경로가 설정된 경우에만 실제 전송된다. 운영 기본 경로는 `classpath:firebase/schedule-for-unusual-fbe03-firebase-adminsdk-fbsvc-f4d15576a0.json`이며, 환경변수 `APP_FCM_CREDENTIALS_PATH`로 덮어쓸 수 있다.
+
+| 알림 | 발송 시점 | 대상 | data |
+| --- | --- | --- | --- |
+| 일정 변경 | 일정 생성/수정/삭제 트랜잭션 커밋 후 | 같은 그룹의 행위자 제외 사용자 | `type=SCHEDULE_CHANGED`, `changeType=CREATED|UPDATED|DELETED` |
+| 오늘 일정 요약 | 매일 `app.fcm.daily-summary-cron` | 그룹 내 각 사용자 | `type=DAILY_SCHEDULE_SUMMARY`, `date=YYYY-MM-DD` |
+
+## 13. 유효성 검증 규칙
+
+### 13.1 일정
 
 - `title`은 공백 제외 1자 이상이어야 한다.
 - `startDate <= endDate`를 만족해야 한다.
@@ -937,12 +1100,13 @@ Query Parameters:
 - `subjectType = SHARED`이면 `ownerUserId`는 nullable 허용이다.
 - `ownerType`은 저장값이 아니라 응답 계산값이다.
 
-### 12.2 근무 스케줄
+### 13.2 근무 스케줄
 
 - `shiftType`은 정의된 enum 중 하나여야 한다.
-- 같은 `groupId`, 같은 `date`에는 하나의 스케줄만 허용한다.
+- 같은 `groupId`, 같은 `ownerUserId`, 같은 `date`에는 하나의 스케줄만 허용한다.
+- 기본 근무 스케줄 표시 대상 설정값은 `ME` 또는 `PARTNER`만 허용한다.
 
-### 12.3 그룹/파트너
+### 13.3 그룹/파트너
 
 - 사용자 한 명은 동시에 하나의 그룹에만 속할 수 없다.
 - 하나의 그룹은 최대 2명으로 제한한다.
@@ -958,7 +1122,7 @@ Query Parameters:
 - 무효화된 리프레시 토큰으로 재발급할 수 없어야 한다.
 - 로그아웃 후 동일 리프레시 토큰 재사용은 실패해야 한다.
 
-## 13. 그룹/파트너 API
+## 14. 그룹/파트너 API
 
 ### 13.1 그룹 조회
 
@@ -1048,7 +1212,8 @@ Query Parameters:
 설명:
 
 - 로그인된 사용자가 초대 토큰을 기준으로 파트너 연결을 수락한다.
-- 성공 시 같은 그룹으로 연결되고, 이후 그룹 내 일정/근무 스케줄 공동 편집이 가능해진다.
+- 성공 시 같은 그룹으로 연결되고, 이후 그룹 내 일정 공동 편집과 서로의 근무 스케줄 조회가 가능해진다.
+- 성공 응답에는 최신 `groupId`가 포함된 새 인증 토큰을 포함한다. 클라이언트는 기존 세션 토큰을 즉시 교체해야 한다.
 
 요청 본문 예시:
 
@@ -1082,7 +1247,15 @@ Query Parameters:
     "permissions": {
       "canReadAllEvents": true,
       "canEditAllEvents": true,
-      "canEditAllShifts": true
+      "canReadAllShifts": true,
+      "canEditOwnShifts": true
+    },
+    "tokens": {
+      "accessToken": "eyJhbGciOiJIUzI1NiJ9...",
+      "refreshToken": "eyJhbGciOiJIUzI1NiJ9...",
+      "tokenType": "Bearer",
+      "expiresIn": 3600,
+      "refreshTokenExpiresIn": 1209600
     }
   }
 }
@@ -1095,6 +1268,7 @@ Query Parameters:
 - 만료, 취소, 사용 완료 초대는 실패해야 한다.
 - 이미 다른 그룹에 속한 사용자는 실패해야 한다.
 - 이미 파트너가 연결된 그룹이면 실패해야 한다.
+- 수락 성공 후 기존 access token의 `groupId`는 더 이상 사용하지 말고, 응답의 `tokens.accessToken`으로 교체해야 한다.
 
 ### 13.5 파트너 직접 추가
 
@@ -1105,24 +1279,25 @@ Query Parameters:
 - 현재 단계에서는 별도 직접 연결 API보다 초대 생성 및 수락 흐름을 우선 사용한다.
 - 이 엔드포인트가 유지되더라도 내부적으로는 유효한 초대 수락 결과를 확정하는 용도로 한정하는 것이 바람직하다.
 
-## 14. 구현 메모
+## 15. 구현 메모
 
 - 일정과 근무 스케줄의 작성자/수정자는 모두 `users.id` 기준으로 저장하는 것이 좋다.
 - `ownerType`은 저장값으로 두지 말고, `subjectType`, `ownerUserId`, `currentUserId`로 응답 시 계산하는 것이 좋다.
 - 일정과 근무 스케줄 조회는 `deleted_at is null` 조건을 기본으로 사용해야 한다.
 - 권한 판단은 `currentUserId`와 그룹 멤버십으로 처리하고, `ME`/`PARTNER` 표시값과 분리해야 한다.
+- 근무 스케줄 조회 대상은 명시된 `shiftOwnerType`을 우선하고, 없으면 사용자의 `defaultShiftOwnerType`을 따른다.
 - Spring Security OAuth2 로그인 성공 처리와 JWT 발급을 같은 인증 서비스에서 연결하면 단순하다.
 - 리프레시 토큰은 서버에서 무효화 가능해야 하므로 DB 저장 전략이 적합하다.
 
-## 15. MVP 우선 구현 목록
+## 16. MVP 우선 구현 목록
 
-1. `users`, `refresh_tokens`, `couple_groups`, `events`, `shift_schedules` 구조 확정
+1. `users`, `refresh_tokens`, `events`, `shift_schedules`, `group_invites` 구조 확정
 2. `GET /auth/kakao/login`, `GET /auth/kakao/callback`, `POST /auth/refresh`, `POST /auth/logout`
-3. `GET /users/me`
+3. `GET /users/me`, `PATCH /users/me/settings`
 4. `POST /events`, `PATCH /events/{eventId}`, `DELETE /events/{eventId}`
 5. `PUT /shifts/{date}`, `DELETE /shifts/{date}`, `PUT /shifts/monthly`
 6. `GET /calendar/month`, `GET /calendar/date/{date}`
-7. 이후 그룹/초대 API 연결
+7. 그룹/초대 API 연결
 
 
 

@@ -23,3 +23,7 @@ app:
     kakao:
       client-id: test-kakao-client-id
       redirect-uri: http://localhost:8080/api/v1/auth/kakao/callback
+  fcm:
+    enabled: false
+    daily-summary-cron: "0 0 8 * * *"
+    zone-id: Asia/Seoul

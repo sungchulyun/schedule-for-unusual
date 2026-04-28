@@ -9,6 +9,7 @@ public record CalendarDateResponse(
         LocalDate date,
         CalendarMetaResponse meta,
         ShiftResponse shift,
+        List<ShiftResponse> shifts,
         List<EventResponse> events
 ) {
 }

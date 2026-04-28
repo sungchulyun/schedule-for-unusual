@@ -32,8 +32,10 @@ class ShiftControllerIntegrationTest {
                                 {
                                   "shiftType": "DAY"
                                 }
-                                """))
+                """))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.ownerUserId").value("usr_me"))
+                .andExpect(jsonPath("$.data.ownerType").value("ME"))
                 .andExpect(jsonPath("$.data.shiftType").value("DAY"));
 
         mockMvc.perform(get("/api/v1/shifts")
@@ -42,6 +44,8 @@ class ShiftControllerIntegrationTest {
                         .param("year", "2026")
                         .param("month", "4"))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items.length()").value(1))
+                .andExpect(jsonPath("$.data.items[0].ownerUserId").value("usr_me"))
                 .andExpect(jsonPath("$.data.items[0].date").value("2026-04-18"));
 
         mockMvc.perform(put("/api/v1/shifts/monthly")
@@ -63,12 +67,30 @@ class ShiftControllerIntegrationTest {
                                     }
                                   ]
                                 }
-                                """))
+                """))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.replacedCount").value(1))
+                .andExpect(jsonPath("$.data.replacedCount").value(0))
                 .andExpect(jsonPath("$.data.items.length()").value(2));
 
-        mockMvc.perform(delete("/api/v1/shifts/2026-04-01")
+        mockMvc.perform(get("/api/v1/shifts")
+                        .header("X-Group-Id", "grp_shift")
+                        .header("X-User-Id", "usr_me")
+                        .param("year", "2026")
+                        .param("month", "4"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items.length()").value(1))
+                .andExpect(jsonPath("$.data.items[0].date").value("2026-04-18"));
+
+        mockMvc.perform(get("/api/v1/shifts")
+                        .header("X-Group-Id", "grp_shift")
+                        .header("X-User-Id", "usr_partner")
+                        .param("year", "2026")
+                        .param("month", "4"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items.length()").value(2))
+                .andExpect(jsonPath("$.data.items[0].ownerUserId").value("usr_partner"));
+
+        mockMvc.perform(delete("/api/v1/shifts/2026-04-18")
                         .header("X-Group-Id", "grp_shift")
                         .header("X-User-Id", "usr_me"))
                 .andExpect(status().isOk())

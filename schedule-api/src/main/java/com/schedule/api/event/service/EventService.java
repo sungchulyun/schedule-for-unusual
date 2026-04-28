@@ -14,11 +14,14 @@ import com.schedule.api.event.domain.Event;
 import com.schedule.api.event.domain.EventOwnerType;
 import com.schedule.api.event.domain.EventSubjectType;
 import com.schedule.api.event.repository.EventRepository;
+import com.schedule.api.notification.event.ScheduleChangeType;
+import com.schedule.api.notification.service.NotificationService;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.List;
 import java.util.Set;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,10 +31,19 @@ public class EventService {
 
     private final EventRepository eventRepository;
     private final IdGenerator idGenerator;
+    private final ApplicationEventPublisher eventPublisher;
+    private final NotificationService notificationService;
 
-    public EventService(EventRepository eventRepository, IdGenerator idGenerator) {
+    public EventService(
+            EventRepository eventRepository,
+            IdGenerator idGenerator,
+            ApplicationEventPublisher eventPublisher,
+            NotificationService notificationService
+    ) {
         this.eventRepository = eventRepository;
         this.idGenerator = idGenerator;
+        this.eventPublisher = eventPublisher;
+        this.notificationService = notificationService;
     }
 
     public EventMonthResponse getMonthlyEvents(
@@ -88,7 +100,9 @@ public class EventService {
                 null
         );
 
-        return toResponse(eventRepository.save(event), context.userId());
+        Event savedEvent = eventRepository.save(event);
+        publishScheduleChanged(savedEvent, context.userId(), ScheduleChangeType.CREATED);
+        return toResponse(savedEvent, context.userId());
     }
 
     @Transactional
@@ -119,6 +133,7 @@ public class EventService {
                 Instant.now()
         );
 
+        publishScheduleChanged(event, context.userId(), ScheduleChangeType.UPDATED);
         return toResponse(event, context.userId());
     }
 
@@ -130,7 +145,12 @@ public class EventService {
         Instant deletedAt = Instant.now();
         event.softDelete(context.userId(), deletedAt);
 
+        publishScheduleChanged(event, context.userId(), ScheduleChangeType.DELETED);
         return new DeleteEventResponse(event.getId(), true, deletedAt);
+    }
+
+    private void publishScheduleChanged(Event event, String actorUserId, ScheduleChangeType changeType) {
+        eventPublisher.publishEvent(notificationService.toScheduleChangedEvent(event, actorUserId, changeType));
     }
 
     private void validateYearMonth(int year, int month) {
