@@ -184,6 +184,15 @@ data class LogoutResponse(
     val loggedOut: Boolean
 )
 
+data class FcmTokenRequest(
+    val token: String,
+    val platform: String? = "ANDROID"
+)
+
+data class FcmTokenResponse(
+    val registered: Boolean
+)
+
 data class UpdateUserSettingsRequest(
     val defaultShiftOwnerType: String
 )

@@ -1,12 +1,17 @@
 package com.example.scheduleapp
 
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.core.content.ContextCompat
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -17,6 +22,7 @@ import com.example.scheduleapp.data.AuthSession
 import com.example.scheduleapp.data.CalendarApiConfig
 import com.example.scheduleapp.data.AuthSessionManager
 import com.example.scheduleapp.data.CalendarRepository
+import com.example.scheduleapp.data.FcmTokenSync
 import com.example.scheduleapp.data.remote.CreateInviteResponse
 import com.example.scheduleapp.data.remote.InviteLookupResponse
 import com.example.scheduleapp.ui.auth.LoginScreen
@@ -39,6 +45,9 @@ import java.time.LocalDate
 
 class MainActivity : ComponentActivity() {
     private val repository by lazy { CalendarRepository() }
+    private val notificationPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { }
     private var latestInviteToken by mutableStateOf<String?>(null)
     private var latestLoginCode by mutableStateOf<String?>(null)
     private var latestLoginErrorMessage by mutableStateOf<String?>(null)
@@ -128,6 +137,13 @@ class MainActivity : ComponentActivity() {
                             session = AuthSessionManager.getSession()
                             partnerConnectionCheckedUserId = currentSession.currentUserId
                         }
+                    }
+                }
+
+                LaunchedEffect(session?.currentUserId) {
+                    if (session != null) {
+                        requestNotificationPermissionIfNeeded()
+                        runCatching { FcmTokenSync.registerCurrentToken(repository) }
                     }
                 }
 
@@ -244,6 +260,7 @@ class MainActivity : ComponentActivity() {
                             },
                             onLogout = {
                                 lifecycleScope.launch {
+                                    runCatching { FcmTokenSync.unregisterCurrentToken(repository) }
                                     runCatching { repository.logout() }
                                     session = AuthSessionManager.getSession()
                                     clearInviteUiState()
@@ -254,6 +271,19 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    private fun requestNotificationPermissionIfNeeded() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+            return
+        }
+
+        val permission = Manifest.permission.POST_NOTIFICATIONS
+        if (ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_GRANTED) {
+            return
+        }
+
+        notificationPermissionLauncher.launch(permission)
     }
 
     override fun onNewIntent(intent: Intent) {

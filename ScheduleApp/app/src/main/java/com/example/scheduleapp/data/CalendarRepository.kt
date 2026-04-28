@@ -15,6 +15,7 @@ import com.example.scheduleapp.data.remote.CreateInviteResponse
 import com.example.scheduleapp.data.remote.CreateEventRequest
 import com.example.scheduleapp.data.remote.DeleteShiftResponse
 import com.example.scheduleapp.data.remote.EventDto
+import com.example.scheduleapp.data.remote.FcmTokenRequest
 import com.example.scheduleapp.data.remote.InviteLookupResponse
 import com.example.scheduleapp.data.remote.LogoutRequest
 import com.example.scheduleapp.data.remote.MobileLoginExchangeRequest
@@ -83,6 +84,20 @@ class CalendarRepository(
         }
         AuthSessionManager.clearSession()
         AuthSessionManager.clearPendingInviteToken()
+    }
+
+    suspend fun registerFcmToken(token: String) {
+        if (token.isBlank() || AuthSessionManager.getSession() == null) {
+            return
+        }
+        unwrap(service.registerFcmToken(FcmTokenRequest(token = token)))
+    }
+
+    suspend fun unregisterFcmToken(token: String) {
+        if (token.isBlank() || AuthSessionManager.getSession() == null) {
+            return
+        }
+        unwrapNullable(service.unregisterFcmToken(FcmTokenRequest(token = token, platform = null)))
     }
 
     suspend fun createInvite(): CreateInviteResponse {
@@ -238,6 +253,19 @@ class CalendarRepository(
     private suspend fun <T> unwrap(response: Response<ApiEnvelope<T>>): T {
         val body = response.body()
         if (response.isSuccessful && body?.success == true && body.data != null) {
+            return body.data
+        }
+
+        val message = when {
+            body?.error?.message != null -> body.error.message
+            else -> errorParser.parse(response) ?: "서버 요청에 실패했습니다."
+        }
+        throw IOException(message)
+    }
+
+    private suspend fun <T> unwrapNullable(response: Response<ApiEnvelope<T>>): T? {
+        val body = response.body()
+        if (response.isSuccessful && body?.success == true) {
             return body.data
         }
 

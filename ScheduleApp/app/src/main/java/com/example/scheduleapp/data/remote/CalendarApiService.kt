@@ -6,6 +6,7 @@ import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET
 import retrofit2.http.Header
+import retrofit2.http.HTTP
 import retrofit2.http.PATCH
 import retrofit2.http.POST
 import retrofit2.http.PUT
@@ -32,6 +33,16 @@ interface CalendarApiService {
     suspend fun logout(
         @Body request: LogoutRequest
     ): Response<ApiEnvelope<LogoutResponse>>
+
+    @POST("api/v1/notifications/fcm-token")
+    suspend fun registerFcmToken(
+        @Body request: FcmTokenRequest
+    ): Response<ApiEnvelope<FcmTokenResponse>>
+
+    @HTTP(method = "DELETE", path = "api/v1/notifications/fcm-token", hasBody = true)
+    suspend fun unregisterFcmToken(
+        @Body request: FcmTokenRequest
+    ): Response<ApiEnvelope<Unit>>
 
     @GET("api/v1/users/me")
     suspend fun getMyProfile(): Response<ApiEnvelope<UserProfileDto>>
