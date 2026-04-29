@@ -2,6 +2,7 @@ package com.schedule.api.shift.controller;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -96,4 +97,56 @@ class ShiftControllerIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.deleted").value(true));
     }
+
+    @Test
+    void previewsMonthlyShiftUpsertRequestFromRecognizedScheduleText() throws Exception {
+        mockMvc.perform(post("/api/v1/shifts/monthly/preview-from-text")
+                        .header("X-Group-Id", "grp_shift_preview")
+                        .header("X-User-Id", "usr_me")
+                        .param("year", "2026")
+                        .param("month", "4")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "scheduleText": "///EnmD///EnmD///EnmD///EnmD//"
+                                }
+                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.daysInMonth").value(30))
+                .andExpect(jsonPath("$.data.recognizedCount").value(30))
+                .andExpect(jsonPath("$.data.issueCount").value(0))
+                .andExpect(jsonPath("$.data.items[0].date").value("2026-04-01"))
+                .andExpect(jsonPath("$.data.items[2].shiftType").value("OFF"))
+                .andExpect(jsonPath("$.data.items[3].shiftType").value("EVENING"))
+                .andExpect(jsonPath("$.data.items[4].shiftType").value("NIGHT"))
+                .andExpect(jsonPath("$.data.items[5].shiftType").value("MID"))
+                .andExpect(jsonPath("$.data.monthlyUpsertRequest.items.length()").value(30));
+    }
+
+    @Test
+    void rejectsDuplicateDatesWhenReplacingMonthlyShifts() throws Exception {
+        mockMvc.perform(put("/api/v1/shifts/monthly")
+                        .header("X-Group-Id", "grp_shift_duplicate")
+                        .header("X-User-Id", "usr_me")
+                        .param("year", "2026")
+                        .param("month", "4")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "items": [
+                                    {
+                                      "date": "2026-04-01",
+                                      "shiftType": "DAY"
+                                    },
+                                    {
+                                      "date": "2026-04-01",
+                                      "shiftType": "NIGHT"
+                                    }
+                                  ]
+                                }
+                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("VALIDATION_ERROR"));
+    }
+
 }
