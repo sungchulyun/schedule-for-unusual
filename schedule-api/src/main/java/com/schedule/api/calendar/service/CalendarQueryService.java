@@ -11,6 +11,7 @@ import com.schedule.api.calendar.dto.CalendarMonthResponse;
 import com.schedule.api.common.context.RequestContext;
 import com.schedule.api.common.exception.BusinessException;
 import com.schedule.api.common.exception.ErrorCode;
+import com.schedule.api.common.util.YearMonthValidator;
 import com.schedule.api.event.domain.Event;
 import com.schedule.api.event.domain.EventOwnerType;
 import com.schedule.api.event.domain.EventSubjectType;
@@ -58,7 +59,7 @@ public class CalendarQueryService {
             boolean includeShifts,
             EventOwnerType shiftOwnerType
     ) {
-        validateYearMonth(year, month);
+        YearMonthValidator.validate(year, month);
         validateShiftOwnerType(shiftOwnerType);
         YearMonth yearMonth = YearMonth.of(year, month);
         LocalDate startDate = yearMonth.atDay(1);
@@ -133,6 +134,8 @@ public class CalendarQueryService {
                 event.getTitle(),
                 event.getStartDate(),
                 event.getEndDate(),
+                event.getStartTime(),
+                event.getEndTime(),
                 event.getSubjectType(),
                 event.getOwnerUserId(),
                 resolveOwnerType(event, currentUserId),
@@ -218,6 +221,8 @@ public class CalendarQueryService {
                             event.ownerType(),
                             event.startDate(),
                             event.endDate(),
+                            event.startTime(),
+                            event.endTime(),
                             !event.startDate().equals(event.endDate())
                     ))
                     .toList();
@@ -327,12 +332,4 @@ public class CalendarQueryService {
                 .toList();
     }
 
-    private void validateYearMonth(int year, int month) {
-        if (month < 1 || month > 12) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "month must be between 1 and 12");
-        }
-        if (year < 2000 || year > 2100) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "year must be between 2000 and 2100");
-        }
-    }
 }

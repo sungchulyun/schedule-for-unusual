@@ -8,6 +8,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalTime;
 
 @Entity
 @Table(name = "events")
@@ -28,6 +29,12 @@ public class Event {
 
     @Column(name = "end_date", nullable = false)
     private LocalDate endDate;
+
+    @Column(name = "start_time", nullable = false)
+    private LocalTime startTime;
+
+    @Column(name = "end_time", nullable = false)
+    private LocalTime endTime;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "subject_type", length = 20, nullable = false)
@@ -63,6 +70,8 @@ public class Event {
             String title,
             LocalDate startDate,
             LocalDate endDate,
+            LocalTime startTime,
+            LocalTime endTime,
             EventSubjectType subjectType,
             String ownerUserId,
             String note,
@@ -77,6 +86,8 @@ public class Event {
         this.title = title;
         this.startDate = startDate;
         this.endDate = endDate;
+        this.startTime = startTime;
+        this.endTime = endTime;
         this.subjectType = subjectType;
         this.ownerUserId = ownerUserId;
         this.note = note;
@@ -91,6 +102,8 @@ public class Event {
             String title,
             LocalDate startDate,
             LocalDate endDate,
+            LocalTime startTime,
+            LocalTime endTime,
             EventSubjectType subjectType,
             String ownerUserId,
             String note,
@@ -100,6 +113,8 @@ public class Event {
         this.title = title;
         this.startDate = startDate;
         this.endDate = endDate;
+        this.startTime = startTime;
+        this.endTime = endTime;
         this.subjectType = subjectType;
         this.ownerUserId = ownerUserId;
         this.note = note;
@@ -131,6 +146,14 @@ public class Event {
 
     public LocalDate getEndDate() {
         return endDate;
+    }
+
+    public LocalTime getStartTime() {
+        return startTime;
+    }
+
+    public LocalTime getEndTime() {
+        return endTime;
     }
 
     public EventSubjectType getSubjectType() {

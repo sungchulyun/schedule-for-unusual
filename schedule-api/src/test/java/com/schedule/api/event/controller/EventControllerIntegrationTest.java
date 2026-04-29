@@ -34,6 +34,8 @@ class EventControllerIntegrationTest {
                                   "title": "병원 방문",
                                   "startDate": "2026-04-18",
                                   "endDate": "2026-04-18",
+                                  "startTime": "09:30",
+                                  "endTime": "10:30",
                                   "subjectType": "PERSONAL",
                                   "ownerUserId": "usr_me",
                                   "note": "정형외과"
@@ -42,6 +44,8 @@ class EventControllerIntegrationTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.ownerType").value("ME"))
+                .andExpect(jsonPath("$.data.startTime").value("09:30:00"))
+                .andExpect(jsonPath("$.data.endTime").value("10:30:00"))
                 .andExpect(jsonPath("$.meta.timestamp").exists())
                 .andReturn()
                 .getResponse()
@@ -90,6 +94,8 @@ class EventControllerIntegrationTest {
                                   "title": "내 일정",
                                   "startDate": "2026-04-18",
                                   "endDate": "2026-04-18",
+                                  "startTime": "09:00",
+                                  "endTime": "10:00",
                                   "subjectType": "PERSONAL",
                                   "ownerUserId": "usr_me"
                                 }
@@ -105,6 +111,8 @@ class EventControllerIntegrationTest {
                                   "title": "우리 일정",
                                   "startDate": "2026-04-18",
                                   "endDate": "2026-04-18",
+                                  "startTime": "11:00",
+                                  "endTime": "12:00",
                                   "subjectType": "SHARED"
                                 }
                                 """))
@@ -142,6 +150,8 @@ class EventControllerIntegrationTest {
                                   "title": "기존 일정",
                                   "startDate": "2026-04-18",
                                   "endDate": "2026-04-18",
+                                  "startTime": "09:00",
+                                  "endTime": "10:00",
                                   "subjectType": "SHARED"
                                 }
                                 """))

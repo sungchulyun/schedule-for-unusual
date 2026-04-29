@@ -4,6 +4,7 @@ import com.schedule.api.common.context.RequestContext;
 import com.schedule.api.common.exception.BusinessException;
 import com.schedule.api.common.exception.ErrorCode;
 import com.schedule.api.common.util.IdGenerator;
+import com.schedule.api.common.util.YearMonthValidator;
 import com.schedule.api.event.dto.CreateEventRequest;
 import com.schedule.api.event.dto.DeleteEventResponse;
 import com.schedule.api.event.dto.EventDateResponse;
@@ -18,6 +19,7 @@ import com.schedule.api.notification.event.ScheduleChangeType;
 import com.schedule.api.notification.service.NotificationService;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.time.YearMonth;
 import java.util.List;
 import java.util.Set;
@@ -52,7 +54,7 @@ public class EventService {
             int month,
             List<EventOwnerType> ownerTypes
     ) {
-        validateYearMonth(year, month);
+        YearMonthValidator.validate(year, month);
         YearMonth yearMonth = YearMonth.of(year, month);
 
         List<EventResponse> items = eventRepository.findActiveEventsInRange(
@@ -81,7 +83,14 @@ public class EventService {
     @Transactional
     public EventResponse createEvent(RequestContext context, CreateEventRequest request) {
         validateTitle(request.title());
-        validateEventRule(request.startDate(), request.endDate(), request.subjectType(), request.ownerUserId());
+        validateEventRule(
+                request.startDate(),
+                request.endDate(),
+                request.startTime(),
+                request.endTime(),
+                request.subjectType(),
+                request.ownerUserId()
+        );
 
         Instant now = Instant.now();
         Event event = new Event(
@@ -90,6 +99,8 @@ public class EventService {
                 request.title().trim(),
                 request.startDate(),
                 request.endDate(),
+                request.startTime(),
+                request.endTime(),
                 request.subjectType(),
                 normalizedOwnerUserId(request.subjectType(), request.ownerUserId()),
                 request.note(),
@@ -113,6 +124,8 @@ public class EventService {
         String title = request.title() != null ? request.title().trim() : event.getTitle();
         LocalDate startDate = request.startDate() != null ? request.startDate() : event.getStartDate();
         LocalDate endDate = request.endDate() != null ? request.endDate() : event.getEndDate();
+        LocalTime startTime = request.startTime() != null ? request.startTime() : event.getStartTime();
+        LocalTime endTime = request.endTime() != null ? request.endTime() : event.getEndTime();
         EventSubjectType subjectType = request.subjectType() != null ? request.subjectType() : event.getSubjectType();
         String ownerUserId = request.ownerUserId() != null || subjectType == EventSubjectType.SHARED
                 ? request.ownerUserId()
@@ -120,12 +133,14 @@ public class EventService {
         String note = request.note() != null ? request.note() : event.getNote();
 
         validateTitle(title);
-        validateEventRule(startDate, endDate, subjectType, ownerUserId);
+        validateEventRule(startDate, endDate, startTime, endTime, subjectType, ownerUserId);
 
         event.update(
                 title,
                 startDate,
                 endDate,
+                startTime,
+                endTime,
                 subjectType,
                 normalizedOwnerUserId(subjectType, ownerUserId),
                 note,
@@ -153,24 +168,20 @@ public class EventService {
         eventPublisher.publishEvent(notificationService.toScheduleChangedEvent(event, actorUserId, changeType));
     }
 
-    private void validateYearMonth(int year, int month) {
-        if (month < 1 || month > 12) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "month must be between 1 and 12");
-        }
-
-        if (year < 2000 || year > 2100) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "year must be between 2000 and 2100");
-        }
-    }
-
     private void validateEventRule(
             LocalDate startDate,
             LocalDate endDate,
+            LocalTime startTime,
+            LocalTime endTime,
             EventSubjectType subjectType,
             String ownerUserId
     ) {
         if (startDate.isAfter(endDate)) {
             throw new BusinessException(ErrorCode.EVENT_INVALID_DATE_RANGE, "startDate must be before or equal to endDate");
+        }
+
+        if (startDate.equals(endDate) && startTime.isAfter(endTime)) {
+            throw new BusinessException(ErrorCode.EVENT_INVALID_DATE_RANGE, "startTime must be before or equal to endTime on the same date");
         }
 
         if (subjectType == EventSubjectType.PERSONAL && (ownerUserId == null || ownerUserId.isBlank())) {
@@ -208,6 +219,8 @@ public class EventService {
                 event.getTitle(),
                 event.getStartDate(),
                 event.getEndDate(),
+                event.getStartTime(),
+                event.getEndTime(),
                 event.getSubjectType(),
                 event.getOwnerUserId(),
                 resolveOwnerType(event, currentUserId),

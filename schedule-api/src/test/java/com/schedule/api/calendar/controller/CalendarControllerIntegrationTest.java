@@ -65,6 +65,8 @@ class CalendarControllerIntegrationTest {
                                   "title": "데이트",
                                   "startDate": "2026-04-18",
                                   "endDate": "2026-04-18",
+                                  "startTime": "19:00",
+                                  "endTime": "21:00",
                                   "subjectType": "SHARED",
                                   "ownerUserId": null,
                                   "note": "저녁 7시"
@@ -107,13 +109,17 @@ class CalendarControllerIntegrationTest {
                 .andExpect(jsonPath("$.data.filters.shiftOwnerType").value("ME"))
                 .andExpect(jsonPath("$.data.meta.groupId").value("grp_calendar"))
                 .andExpect(jsonPath("$.data.events[0].title").value("데이트"))
+                .andExpect(jsonPath("$.data.events[0].startTime").value("19:00:00"))
+                .andExpect(jsonPath("$.data.events[0].endTime").value("21:00:00"))
                 .andExpect(jsonPath("$.data.shifts.length()").value(1))
                 .andExpect(jsonPath("$.data.shifts[0].ownerUserId").value("usr_me"))
                 .andExpect(jsonPath("$.data.shifts[0].date").value("2026-04-18"))
                 .andExpect(jsonPath("$.data.days[17].date").value("2026-04-18"))
                 .andExpect(jsonPath("$.data.days[17].shift.shiftType").value("DAY"))
                 .andExpect(jsonPath("$.data.days[17].shifts.length()").value(1))
-                .andExpect(jsonPath("$.data.days[17].events[0].title").value("데이트"));
+                .andExpect(jsonPath("$.data.days[17].events[0].title").value("데이트"))
+                .andExpect(jsonPath("$.data.days[17].events[0].startTime").value("19:00:00"))
+                .andExpect(jsonPath("$.data.days[17].events[0].endTime").value("21:00:00"));
 
         mockMvc.perform(get("/api/v1/calendar/month")
                         .header("X-Group-Id", "grp_calendar")
@@ -195,6 +201,8 @@ class CalendarControllerIntegrationTest {
                                   "title": "내 일정",
                                   "startDate": "2026-04-20",
                                   "endDate": "2026-04-20",
+                                  "startTime": "09:00",
+                                  "endTime": "10:00",
                                   "subjectType": "PERSONAL",
                                   "ownerUserId": "usr_filter"
                                 }
@@ -210,6 +218,8 @@ class CalendarControllerIntegrationTest {
                                   "title": "우리 일정",
                                   "startDate": "2026-04-20",
                                   "endDate": "2026-04-20",
+                                  "startTime": "11:00",
+                                  "endTime": "12:00",
                                   "subjectType": "SHARED"
                                 }
                                 """))
