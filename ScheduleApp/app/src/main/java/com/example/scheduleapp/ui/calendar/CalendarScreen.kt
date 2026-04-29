@@ -1,5 +1,7 @@
 package com.example.scheduleapp.ui.calendar
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -45,6 +47,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -55,6 +58,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import java.time.LocalDate
+import java.time.LocalTime
 import java.time.YearMonth
 
 private const val CalendarCellAspectRatio = 0.52f
@@ -90,6 +94,12 @@ private data class CalendarEventBuckets(
     val allByDate: Map<LocalDate, List<CalendarEvent>>,
     val singleDayByDate: Map<LocalDate, List<CalendarEvent>>,
     val multiDayByDate: Map<LocalDate, List<CalendarEvent>>
+)
+
+private data class BulkShiftOcrUiState(
+    val isRecognizing: Boolean = false,
+    val statusMessage: String? = null,
+    val issues: List<String> = emptyList()
 )
 
 @Composable
@@ -218,7 +228,7 @@ fun CalendarScreen(
                 errorMessage = remoteState.errorMessage,
                 onDismissError = calendarViewModel::clearError,
                 onBack = { screenMode = CalendarScreenMode.MONTH },
-                onSaveEvent = { eventId, ownerType, startDate, endDate, title, note ->
+                onSaveEvent = { eventId, ownerType, startDate, endDate, startTime, endTime, title, note ->
                     val monthToRefresh = YearMonth.from(startDate)
                     val onSuccess = {
                         selectedDate = startDate
@@ -231,6 +241,8 @@ fun CalendarScreen(
                             ownerType = ownerType,
                             startDate = startDate,
                             endDate = endDate,
+                            startTime = startTime,
+                            endTime = endTime,
                             title = title,
                             note = note,
                             monthToRefresh = monthToRefresh,
@@ -242,6 +254,8 @@ fun CalendarScreen(
                             ownerType = ownerType,
                             startDate = startDate,
                             endDate = endDate,
+                            startTime = startTime,
+                            endTime = endTime,
                             title = title,
                             note = note,
                             monthToRefresh = monthToRefresh,
@@ -294,12 +308,14 @@ fun CalendarScreen(
                 errorMessage = remoteState.errorMessage,
                 onDismissError = calendarViewModel::clearError,
                 onBack = { screenMode = CalendarScreenMode.ENTRY_HOME },
-                onSaveEvent = { ownerType, startDate, endDate, title, note ->
+                onSaveEvent = { ownerType, startDate, endDate, startTime, endTime, title, note ->
                     val targetMonth = YearMonth.from(startDate)
                     calendarViewModel.createEvent(
                         ownerType = ownerType,
                         startDate = startDate,
                         endDate = endDate,
+                        startTime = startTime,
+                        endTime = endTime,
                         title = title,
                         note = note,
                         monthToRefresh = targetMonth,
@@ -788,7 +804,7 @@ private fun DayDetailScreen(
     errorMessage: String?,
     onDismissError: () -> Unit,
     onBack: () -> Unit,
-    onSaveEvent: (String?, EventOwnerType, LocalDate, LocalDate, String, String?) -> Unit,
+    onSaveEvent: (String?, EventOwnerType, LocalDate, LocalDate, LocalTime, LocalTime, String, String?) -> Unit,
     onDeleteEvent: (String) -> Unit,
     onSaveShift: (ShiftType) -> Unit,
     onDeleteShift: () -> Unit
@@ -853,12 +869,14 @@ private fun DayDetailScreen(
                 initialEvent = editingEvent,
                 isCreating = editingEventId == NEW_EVENT_ID,
                 onCancel = { editingEventId = null },
-                onSave = { ownerType, startDate, endDate, title, note ->
+                onSave = { ownerType, startDate, endDate, startTime, endTime, title, note ->
                     onSaveEvent(
                         editingEvent?.id,
                         ownerType,
                         startDate,
                         endDate,
+                        startTime,
+                        endTime,
                         title,
                         note
                     )
@@ -1002,12 +1020,12 @@ private fun EntryHomeScreen(
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     Text(
-                        text = "일괄 스케줄 등록",
+                        text = "스케줄표 일괄 등록",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        text = "현재 달의 모든 날짜를 한 화면에서 보며 근무 스케줄을 일괄 입력합니다.",
+                        text = "스케줄표 이미지를 불러와 자동 입력하거나, 현재 달의 모든 날짜를 직접 검토하며 저장합니다.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -1025,11 +1043,13 @@ private fun EventEntryScreen(
     errorMessage: String?,
     onDismissError: () -> Unit,
     onBack: () -> Unit,
-    onSaveEvent: (EventOwnerType, LocalDate, LocalDate, String, String?) -> Unit
+    onSaveEvent: (EventOwnerType, LocalDate, LocalDate, LocalTime, LocalTime, String, String?) -> Unit
 ) {
     var selectedOwnerType by remember { mutableStateOf(EventOwnerType.ME) }
     var startDate by remember(initialDate) { mutableStateOf(initialDate) }
     var endDate by remember(initialDate) { mutableStateOf(initialDate) }
+    var startTime by remember { mutableStateOf(LocalTime.of(9, 0)) }
+    var endTime by remember { mutableStateOf(LocalTime.of(10, 0)) }
     var title by rememberSaveable(stateSaver = TextFieldValue.Saver) {
         mutableStateOf(TextFieldValue(""))
     }
@@ -1122,10 +1142,24 @@ private fun EventEntryScreen(
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold
                         )
-                        IconButton(onClick = { startDate = startDate.plusDays(1) }) {
+                        IconButton(onClick = {
+                            startDate = startDate.plusDays(1)
+                            if (endDate.isBefore(startDate)) endDate = startDate
+                            if (startDate == endDate && endTime.isBefore(startTime)) endTime = startTime
+                        }) {
                             Text(text = ">", style = MaterialTheme.typography.titleMedium)
                         }
                     }
+                    TimeStepperRow(
+                        label = "시작 시간",
+                        time = startTime,
+                        onTimeChange = { time ->
+                            startTime = time
+                            if (startDate == endDate && endTime.isBefore(startTime)) {
+                                endTime = startTime
+                            }
+                        }
+                    )
 
                     Text(
                         text = "종료일",
@@ -1137,7 +1171,10 @@ private fun EventEntryScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        IconButton(onClick = { endDate = endDate.minusDays(1).takeIf { !it.isBefore(startDate) } ?: startDate }) {
+                        IconButton(onClick = {
+                            endDate = endDate.minusDays(1).takeIf { !it.isBefore(startDate) } ?: startDate
+                            if (startDate == endDate && endTime.isBefore(startTime)) endTime = startTime
+                        }) {
                             Text(text = "<", style = MaterialTheme.typography.titleMedium)
                         }
                         Text(
@@ -1149,6 +1186,13 @@ private fun EventEntryScreen(
                             Text(text = ">", style = MaterialTheme.typography.titleMedium)
                         }
                     }
+                    TimeStepperRow(
+                        label = "종료 시간",
+                        time = endTime,
+                        onTimeChange = { time ->
+                            endTime = if (startDate == endDate && time.isBefore(startTime)) startTime else time
+                        }
+                    )
 
                     OutlinedTextField(
                         value = title,
@@ -1179,6 +1223,8 @@ private fun EventEntryScreen(
                                 selectedOwnerType,
                                 startDate,
                                 endDate,
+                                startTime,
+                                endTime,
                                 title.text.trim(),
                                 note.text.trim().ifBlank { null }
                             )
@@ -1200,7 +1246,7 @@ private fun EventEditorSection(
     initialEvent: CalendarEvent?,
     isCreating: Boolean,
     onCancel: () -> Unit,
-    onSave: (EventOwnerType, LocalDate, LocalDate, String, String?) -> Unit,
+    onSave: (EventOwnerType, LocalDate, LocalDate, LocalTime, LocalTime, String, String?) -> Unit,
     onDelete: () -> Unit
 ) {
     var selectedOwnerType by remember(initialEvent, isCreating) {
@@ -1211,6 +1257,12 @@ private fun EventEditorSection(
     }
     var endDate by remember(initialEvent, selectedDate) {
         mutableStateOf(initialEvent?.endDate ?: selectedDate)
+    }
+    var startTime by remember(initialEvent, selectedDate) {
+        mutableStateOf(initialEvent?.startTime ?: LocalTime.of(9, 0))
+    }
+    var endTime by remember(initialEvent, selectedDate) {
+        mutableStateOf(initialEvent?.endTime ?: LocalTime.of(10, 0))
     }
     var title by rememberSaveable(selectedDate, initialEvent?.id, stateSaver = TextFieldValue.Saver) {
         mutableStateOf(TextFieldValue(initialEvent?.title.orEmpty()))
@@ -1288,10 +1340,24 @@ private fun EventEditorSection(
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
                 )
-                IconButton(onClick = { startDate = startDate.plusDays(1) }) {
+                IconButton(onClick = {
+                    startDate = startDate.plusDays(1)
+                    if (endDate.isBefore(startDate)) endDate = startDate
+                    if (startDate == endDate && endTime.isBefore(startTime)) endTime = startTime
+                }) {
                     Text(text = ">", style = MaterialTheme.typography.titleMedium)
                 }
             }
+            TimeStepperRow(
+                label = "시작 시간",
+                time = startTime,
+                onTimeChange = { time ->
+                    startTime = time
+                    if (startDate == endDate && endTime.isBefore(startTime)) {
+                        endTime = startTime
+                    }
+                }
+            )
 
             Text(
                 text = "종료일",
@@ -1303,7 +1369,10 @@ private fun EventEditorSection(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                IconButton(onClick = { endDate = endDate.minusDays(1).takeIf { !it.isBefore(startDate) } ?: startDate }) {
+                IconButton(onClick = {
+                    endDate = endDate.minusDays(1).takeIf { !it.isBefore(startDate) } ?: startDate
+                    if (startDate == endDate && endTime.isBefore(startTime)) endTime = startTime
+                }) {
                     Text(text = "<", style = MaterialTheme.typography.titleMedium)
                 }
                 Text(
@@ -1315,6 +1384,13 @@ private fun EventEditorSection(
                     Text(text = ">", style = MaterialTheme.typography.titleMedium)
                 }
             }
+            TimeStepperRow(
+                label = "종료 시간",
+                time = endTime,
+                onTimeChange = { time ->
+                    endTime = if (startDate == endDate && time.isBefore(startTime)) startTime else time
+                }
+            )
 
             OutlinedTextField(
                 value = title,
@@ -1345,6 +1421,8 @@ private fun EventEditorSection(
                         selectedOwnerType,
                         startDate,
                         endDate,
+                        startTime,
+                        endTime,
                         title.text.trim(),
                         note.text.trim().ifBlank { null }
                     )
@@ -1354,6 +1432,36 @@ private fun EventEditorSection(
             ) {
                 Text(if (isCreating) "일정 추가 저장" else "일정 수정 저장")
             }
+        }
+    }
+}
+
+@Composable
+private fun TimeStepperRow(
+    label: String,
+    time: LocalTime,
+    onTimeChange: (LocalTime) -> Unit
+) {
+    Text(
+        text = label,
+        style = MaterialTheme.typography.titleSmall,
+        fontWeight = FontWeight.SemiBold
+    )
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        IconButton(onClick = { onTimeChange(time.minusMinutes(30)) }) {
+            Text(text = "<", style = MaterialTheme.typography.titleMedium)
+        }
+        Text(
+            text = time.displayText(),
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold
+        )
+        IconButton(onClick = { onTimeChange(time.plusMinutes(30)) }) {
+            Text(text = ">", style = MaterialTheme.typography.titleMedium)
         }
     }
 }
@@ -1376,6 +1484,38 @@ private fun BulkShiftRegistrationScreen(
         }
     }
     var draftSelections by remember(month, existingShifts) { mutableStateOf(initialSelections) }
+    var ocrUiState by remember(month) { mutableStateOf(BulkShiftOcrUiState()) }
+    val context = LocalContext.current
+    val imagePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        ocrUiState = BulkShiftOcrUiState(
+            isRecognizing = true,
+            statusMessage = "스케줄표를 인식하는 중입니다."
+        )
+        ShiftOcrImageRecognizer.recognize(
+            context = context,
+            uri = uri,
+            onSuccess = { recognizedText ->
+                val parseResult = parseShiftOcrText(recognizedText, month)
+                draftSelections = monthDates.associateWith { date -> parseResult.items[date] }
+                ocrUiState = ocrUiState.copy(
+                    statusMessage = "${month.lengthOfMonth()}일 중 ${parseResult.recognizedCount}일을 자동 입력했습니다. 저장 전 날짜별 스케줄을 확인해 주세요.",
+                    issues = parseResult.issues
+                )
+            },
+            onFailure = { message ->
+                ocrUiState = ocrUiState.copy(
+                    statusMessage = message,
+                    issues = emptyList()
+                )
+            },
+            onComplete = {
+                ocrUiState = ocrUiState.copy(isRecognizing = false)
+            }
+        )
+    }
 
     Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
         Column(
@@ -1394,12 +1534,12 @@ private fun BulkShiftRegistrationScreen(
                 }
                 Column {
                     Text(
-                        text = "일괄 스케줄 등록",
+                        text = "스케줄표 일괄 등록",
                         style = MaterialTheme.typography.headlineSmall,
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        text = "${month.year}년 ${month.monthValue}월 전체 날짜 입력",
+                        text = "${month.year}년 ${month.monthValue}월 스케줄 검토 및 저장",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -1412,6 +1552,63 @@ private fun BulkShiftRegistrationScreen(
                 errorMessage = errorMessage,
                 onDismissError = onDismissError
             )
+
+            Surface(
+                shape = RoundedCornerShape(20.dp),
+                color = MaterialTheme.colorScheme.surface,
+                tonalElevation = 1.dp
+            ) {
+                Column(
+                    modifier = Modifier.padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = "스케줄표 불러오기",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "본인 근무표 행 이미지를 선택하면 OCR로 근무 코드를 읽어 아래 날짜별 스케줄에 자동 입력합니다.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        OutlinedButton(
+                            onClick = { imagePickerLauncher.launch("image/*") },
+                            enabled = !ocrUiState.isRecognizing && !isSubmitting
+                        ) {
+                            Text(if (ocrUiState.isRecognizing) "스케줄표 인식 중" else "스케줄표 불러오기")
+                        }
+                        OutlinedButton(
+                            onClick = {
+                                draftSelections = initialSelections
+                                ocrUiState = BulkShiftOcrUiState()
+                            },
+                            enabled = !ocrUiState.isRecognizing && !isSubmitting
+                        ) {
+                            Text("기존 입력으로 되돌리기")
+                        }
+                    }
+                    ocrUiState.statusMessage?.let { message ->
+                        Text(
+                            text = message,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                    ocrUiState.issues.forEach { issue ->
+                        Text(
+                            text = issue,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
+                }
+            }
 
             Column(
                 modifier = Modifier
@@ -1468,7 +1665,7 @@ private fun BulkShiftRegistrationScreen(
                 onClick = { onSaveBulkShifts(draftSelections) },
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text("이번 달 스케줄 저장")
+                Text("검토한 스케줄 저장")
             }
         }
     }

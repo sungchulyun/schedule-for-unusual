@@ -44,6 +44,7 @@ import retrofit2.Retrofit
 import retrofit2.converter.moshi.MoshiConverterFactory
 import java.io.IOException
 import java.time.LocalDate
+import java.time.LocalTime
 import java.time.YearMonth
 import java.util.concurrent.TimeUnit
 
@@ -178,10 +179,12 @@ class CalendarRepository(
         ownerType: EventOwnerType,
         startDate: LocalDate,
         endDate: LocalDate,
+        startTime: LocalTime,
+        endTime: LocalTime,
         title: String,
         note: String?
     ) {
-        val request = buildEventRequest(ownerType, startDate, endDate, title, note)
+        val request = buildEventRequest(ownerType, startDate, endDate, startTime, endTime, title, note)
         unwrap(
             service.createEvent(
                 groupId = CalendarApiConfig.groupId,
@@ -195,10 +198,12 @@ class CalendarRepository(
         ownerType: EventOwnerType,
         startDate: LocalDate,
         endDate: LocalDate,
+        startTime: LocalTime,
+        endTime: LocalTime,
         title: String,
         note: String?
     ) {
-        val request = buildEventRequest(ownerType, startDate, endDate, title, note)
+        val request = buildEventRequest(ownerType, startDate, endDate, startTime, endTime, title, note)
         unwrap(
             service.updateEvent(
                 eventId = eventId,
@@ -280,6 +285,8 @@ class CalendarRepository(
         ownerType: EventOwnerType,
         startDate: LocalDate,
         endDate: LocalDate,
+        startTime: LocalTime,
+        endTime: LocalTime,
         title: String,
         note: String?
     ): CreateEventRequest {
@@ -288,6 +295,8 @@ class CalendarRepository(
             title = title,
             startDate = startDate.toString(),
             endDate = endDate.toString(),
+            startTime = startTime.toString(),
+            endTime = endTime.toString(),
             subjectType = payload.subjectType,
             ownerUserId = payload.ownerUserId,
             note = note
@@ -329,6 +338,8 @@ class CalendarRepository(
             title = title,
             startDate = LocalDate.parse(startDate),
             endDate = LocalDate.parse(endDate),
+            startTime = LocalTime.parse(startTime),
+            endTime = LocalTime.parse(endTime),
             ownerType = mappedOwnerType,
             note = note
         )
@@ -368,6 +379,8 @@ class CalendarRepository(
             title = title,
             startDate = startDate,
             endDate = endDate,
+            startTime = startTime,
+            endTime = endTime,
             subjectType = subjectType,
             ownerUserId = ownerUserId,
             note = note

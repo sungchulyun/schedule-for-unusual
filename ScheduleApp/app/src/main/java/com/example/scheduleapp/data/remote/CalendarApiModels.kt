@@ -61,6 +61,8 @@ data class EventDto(
     val title: String,
     val startDate: String,
     val endDate: String,
+    val startTime: String,
+    val endTime: String,
     val subjectType: String? = null,
     val ownerUserId: String? = null,
     val ownerType: String,
@@ -79,6 +81,8 @@ data class CreateEventRequest(
     val title: String,
     val startDate: String,
     val endDate: String,
+    val startTime: String,
+    val endTime: String,
     val subjectType: String,
     val ownerUserId: String?,
     val note: String?
@@ -88,6 +92,8 @@ data class UpdateEventRequest(
     val title: String,
     val startDate: String,
     val endDate: String,
+    val startTime: String,
+    val endTime: String,
     val subjectType: String,
     val ownerUserId: String?,
     val note: String?

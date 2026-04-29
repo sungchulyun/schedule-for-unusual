@@ -8,6 +8,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.scheduleapp.data.CalendarRepository
 import kotlinx.coroutines.launch
 import java.time.LocalDate
+import java.time.LocalTime
 import java.time.YearMonth
 
 data class CalendarRemoteState(
@@ -69,13 +70,15 @@ class CalendarViewModel(
         ownerType: EventOwnerType,
         startDate: LocalDate,
         endDate: LocalDate,
+        startTime: LocalTime,
+        endTime: LocalTime,
         title: String,
         note: String?,
         monthToRefresh: YearMonth,
         onSuccess: () -> Unit
     ) {
         submit(monthToRefresh, onSuccess) {
-            repository.createEvent(ownerType, startDate, endDate, title, note)
+            repository.createEvent(ownerType, startDate, endDate, startTime, endTime, title, note)
         }
     }
 
@@ -84,13 +87,15 @@ class CalendarViewModel(
         ownerType: EventOwnerType,
         startDate: LocalDate,
         endDate: LocalDate,
+        startTime: LocalTime,
+        endTime: LocalTime,
         title: String,
         note: String?,
         monthToRefresh: YearMonth,
         onSuccess: () -> Unit
     ) {
         submit(monthToRefresh, onSuccess) {
-            repository.updateEvent(eventId, ownerType, startDate, endDate, title, note)
+            repository.updateEvent(eventId, ownerType, startDate, endDate, startTime, endTime, title, note)
         }
     }
 

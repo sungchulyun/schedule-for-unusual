@@ -2,6 +2,8 @@ package com.example.scheduleapp.ui.calendar
 
 import androidx.compose.ui.graphics.Color
 import java.time.LocalDate
+import java.time.LocalTime
+import java.time.format.DateTimeFormatter
 
 data class CalendarFilters(
     val showMe: Boolean = true,
@@ -23,6 +25,8 @@ data class CalendarEvent(
     val title: String,
     val startDate: LocalDate,
     val endDate: LocalDate,
+    val startTime: LocalTime,
+    val endTime: LocalTime,
     val ownerType: EventOwnerType,
     val note: String?
 ) {
@@ -31,13 +35,15 @@ data class CalendarEvent(
     fun isMultiDay(): Boolean = startDate != endDate
 
     fun displayDateText(): String {
-        return if (startDate == endDate) {
-            "${startDate.monthValue}월 ${startDate.dayOfMonth}일"
-        } else {
-            "${startDate.monthValue}/${startDate.dayOfMonth} - ${endDate.monthValue}/${endDate.dayOfMonth}"
-        }
+        val start = "${startDate.monthValue}월 ${startDate.dayOfMonth}일 ${startTime.displayText()}"
+        val end = "${endDate.monthValue}월 ${endDate.dayOfMonth}일 ${endTime.displayText()}"
+        return "$start - $end"
     }
 }
+
+private val EventTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
+
+fun LocalTime.displayText(): String = format(EventTimeFormatter)
 
 enum class EventOwnerType(val label: String, val color: Color) {
     ME("내 일정", Color(0xFF326BFF)),
