@@ -81,3 +81,14 @@ fun ShiftType.calendarBadgeLabel(): String {
         else -> label.first().toString()
     }
 }
+
+fun ShiftType.widgetShortLabel(): String {
+    return when (this) {
+        ShiftType.DAY -> "D"
+        ShiftType.NIGHT -> "N"
+        ShiftType.MID -> "M"
+        ShiftType.EVENING -> "E"
+        ShiftType.OFF -> "O"
+        ShiftType.VACATION -> "V"
+    }
+}

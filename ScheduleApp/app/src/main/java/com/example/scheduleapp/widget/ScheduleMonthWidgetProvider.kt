@@ -20,6 +20,7 @@ import com.example.scheduleapp.ui.calendar.ShiftOwnerType
 import com.example.scheduleapp.ui.calendar.ShiftType
 import com.example.scheduleapp.ui.calendar.buildCalendarDays
 import com.example.scheduleapp.ui.calendar.buildEventsByDate
+import com.example.scheduleapp.ui.calendar.widgetShortLabel
 import kotlinx.coroutines.runBlocking
 import java.time.LocalDate
 import java.time.YearMonth
@@ -289,16 +290,5 @@ private fun ShiftType.widgetBadgeBackgroundRes(): Int {
         ShiftType.EVENING -> R.drawable.widget_shift_badge_evening
         ShiftType.OFF -> R.drawable.widget_shift_badge_off
         ShiftType.VACATION -> R.drawable.widget_shift_badge_vacation
-    }
-}
-
-private fun ShiftType.widgetShortLabel(): String {
-    return when (this) {
-        ShiftType.DAY -> "D"
-        ShiftType.NIGHT -> "N"
-        ShiftType.MID -> "M"
-        ShiftType.EVENING -> "E"
-        ShiftType.OFF -> "O"
-        ShiftType.VACATION -> "V"
     }
 }

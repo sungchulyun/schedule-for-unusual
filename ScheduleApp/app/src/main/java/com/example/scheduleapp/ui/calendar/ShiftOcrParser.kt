@@ -2,6 +2,7 @@ package com.example.scheduleapp.ui.calendar
 
 import java.time.LocalDate
 import java.time.YearMonth
+import kotlin.math.abs
 
 data class ShiftOcrParseResult(
     val items: Map<LocalDate, ShiftType>,
@@ -13,11 +14,8 @@ fun parseShiftOcrText(
     text: String,
     month: YearMonth
 ): ShiftOcrParseResult {
-    val codes = text
-        .asSequence()
-        .mapNotNull { it.toShiftTypeOrNull() }
-        .toList()
     val daysInMonth = month.lengthOfMonth()
+    val codes = text.extractScheduleCodes(daysInMonth)
     val items = codes
         .take(daysInMonth)
         .mapIndexed { index, shiftType -> month.atDay(index + 1) to shiftType }
@@ -38,13 +36,48 @@ fun parseShiftOcrText(
     )
 }
 
+private const val ScheduleCellStartIndex = 2
+private val CellSeparator = Regex("\\s+")
+
+private data class ShiftOcrRowCandidate(
+    val codes: List<ShiftType>
+)
+
+private fun String.extractScheduleCodes(daysInMonth: Int): List<ShiftType> {
+    val rowCandidates = lineSequence()
+        .map { it.trim() }
+        .filter { it.isNotEmpty() }
+        .mapNotNull { line ->
+            val cells = line.split(CellSeparator)
+            if (cells.size <= ScheduleCellStartIndex) {
+                null
+            } else {
+                val codes = cells
+                    .drop(ScheduleCellStartIndex)
+                    .flatMap { cell -> cell.asShiftTypes() }
+                if (codes.isEmpty()) null else ShiftOcrRowCandidate(codes)
+            }
+        }
+        .toList()
+
+    return rowCandidates
+        .minWithOrNull(
+            compareBy<ShiftOcrRowCandidate> { abs(it.codes.size - daysInMonth) }
+                .thenByDescending { it.codes.size }
+        )
+        ?.codes
+        ?: asShiftTypes()
+}
+
+private fun String.asShiftTypes(): List<ShiftType> {
+    return asSequence()
+        .mapNotNull { it.toShiftTypeOrNull() }
+        .toList()
+}
+
 private fun Char.toShiftTypeOrNull(): ShiftType? {
-    return when (this) {
-        '/' -> ShiftType.OFF
-        'D', 'd' -> ShiftType.DAY
-        'E', 'e' -> ShiftType.EVENING
-        'N', 'n' -> ShiftType.NIGHT
-        'M', 'm' -> ShiftType.MID
-        else -> null
-    }
+    if (this == '/') return ShiftType.OFF
+
+    val normalized = uppercaseChar().toString()
+    return ShiftType.entries.firstOrNull { it.widgetShortLabel() == normalized }
 }

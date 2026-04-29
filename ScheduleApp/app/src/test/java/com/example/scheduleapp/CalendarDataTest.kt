@@ -104,23 +104,33 @@ class CalendarDataTest {
 
     @Test
     fun `parse shift ocr text maps supported schedule codes by date`() {
-        val result = parseShiftOcrText("1 / D e n M x", YearMonth.of(2026, 4))
+        val result = parseShiftOcrText("DName 1급 / D e n M v x", YearMonth.of(2026, 4))
 
-        assertEquals(5, result.recognizedCount)
+        assertEquals(6, result.recognizedCount)
         assertEquals(ShiftType.OFF, result.items[LocalDate.of(2026, 4, 1)])
         assertEquals(ShiftType.DAY, result.items[LocalDate.of(2026, 4, 2)])
         assertEquals(ShiftType.EVENING, result.items[LocalDate.of(2026, 4, 3)])
         assertEquals(ShiftType.NIGHT, result.items[LocalDate.of(2026, 4, 4)])
         assertEquals(ShiftType.MID, result.items[LocalDate.of(2026, 4, 5)])
+        assertEquals(ShiftType.VACATION, result.items[LocalDate.of(2026, 4, 6)])
         assertTrue(result.issues.first().contains("누락"))
     }
 
     @Test
     fun `parse shift ocr text trims extra codes beyond month length`() {
-        val result = parseShiftOcrText("/".repeat(35), YearMonth.of(2026, 4))
+        val result = parseShiftOcrText("DName 1급 ${"O ".repeat(35)}", YearMonth.of(2026, 4))
 
         assertEquals(30, result.recognizedCount)
         assertEquals(30, result.items.size)
         assertTrue(result.issues.first().contains("많아"))
+    }
+
+    @Test
+    fun `parse shift ocr text ignores name and grade cells before schedule columns`() {
+        val result = parseShiftOcrText("DName 1급 ${"O ".repeat(31)}", YearMonth.of(2026, 5))
+
+        assertEquals(31, result.recognizedCount)
+        assertEquals(31, result.items.size)
+        assertTrue(result.issues.isEmpty())
     }
 }
