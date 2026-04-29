@@ -256,7 +256,7 @@ DB 저장 기준의 절대값이다.
 
 ### 5.6 Android ML Kit OCR 스케줄 코드
 
-이미지/OCR 기반 스케줄 등록은 Android 앱에서 Google ML Kit OCR로 수행한다. 앱은 이미지에서 추출한 근무 코드 문자열을 날짜별 `shiftType`으로 변환하고, 사용자가 확인/수정한 뒤 `PUT /api/v1/shifts/monthly` 일괄 저장 API를 호출한다.
+이미지/OCR 기반 스케줄 등록은 Android 앱에서 Google ML Kit OCR로 수행한다. 앱은 이미지에서 추출한 근무 코드 문자열을 앱 내부에서 날짜별 `shiftType`으로 변환하고, 사용자가 확인/수정한 뒤 `PUT /api/v1/shifts/monthly` 일괄 저장 API를 호출한다.
 
 지원하는 이미지 스케줄 코드:
 
@@ -269,6 +269,8 @@ DB 저장 기준의 절대값이다.
 | `M`, `m` | `MID` |
 
 `/`는 휴가를 포함한 쉬는 날로 취급하며 현재 저장값은 `OFF`로 매핑한다.
+
+서버는 이미지, OCR 원문 텍스트, OCR 파싱용 프리뷰 API를 제공하지 않는다. 서버는 앱이 확정한 월별 저장 요청의 `items`만 검증하고 저장한다.
 
 ## 6. 공통 에러 코드
 
@@ -837,83 +839,16 @@ Query Parameters:
 }
 ```
 
-## 10.5 OCR 텍스트 기반 월별 근무 스케줄 프리뷰
-
-- `POST /api/v1/shifts/monthly/preview-from-text?year=2026&month=4`
-
-설명:
-
-- Android ML Kit OCR 또는 테스트 도구가 추출한 한 사람의 월간 스케줄 코드 문자열을 월별 일괄 저장 요청 형태로 변환한다.
-- 이 API는 저장하지 않는다.
-- Android 앱의 기본 경로는 앱 내부 파싱 후 `PUT /api/v1/shifts/monthly` 호출이며, 이 API는 서버 파서 검증 또는 디버깅용으로 사용한다.
-- `D`, `E`, `N/n`, `M/m`, `/`만 스케줄 코드로 인식한다.
-- 숫자, 공백, 일반 구분자는 무시한다.
-- 월 일수보다 부족하거나 초과한 코드는 `issues`에 포함한다.
-
-요청 본문:
-
-```json
-{
-  "scheduleText": "///EnmD///EnmD///EnmD///EnmD//"
-}
-```
-
-응답 예시:
-
-```json
-{
-  "success": true,
-  "data": {
-    "year": 2026,
-    "month": 4,
-    "daysInMonth": 30,
-    "recognizedCount": 30,
-    "issueCount": 0,
-    "items": [
-      {
-        "date": "2026-04-01",
-        "day": 1,
-        "rawCode": "/",
-        "normalizedCode": "/",
-        "shiftType": "OFF",
-        "editable": true
-      },
-      {
-        "date": "2026-04-04",
-        "day": 4,
-        "rawCode": "E",
-        "normalizedCode": "E",
-        "shiftType": "EVENING",
-        "editable": true
-      }
-    ],
-    "issues": [],
-    "monthlyUpsertRequest": {
-      "items": [
-        {
-          "date": "2026-04-01",
-          "shiftType": "OFF"
-        },
-        {
-          "date": "2026-04-04",
-          "shiftType": "EVENING"
-        }
-      ]
-    }
-  }
-}
-```
-
-## 10.6 Android OCR 기반 월별 근무 스케줄 저장 플로우
+## 10.5 Android OCR 기반 월별 근무 스케줄 저장 플로우
 
 1. 사용자가 본인 스케줄 행 이미지를 선택하거나 자른다.
 2. Android 앱이 Google ML Kit Text Recognition으로 코드 문자열을 추출한다.
-3. 앱이 `/`, `D`, `E`, `N/n`, `M/m` 코드를 날짜별 `shiftType`으로 변환해 월간 수정 화면에 표시한다.
+3. 앱이 `/`, `D`, `E`, `N/n`, `M/m` 코드를 앱 내부에서 날짜별 `shiftType`으로 변환해 월간 수정 화면에 표시한다.
 4. 인식 실패/누락 항목은 사용자가 직접 수정한다.
 5. 확정 시 `PUT /api/v1/shifts/monthly`로 일괄 저장한다.
-6. 서버는 이미지를 받지 않으며, 저장 요청의 `items`만 검증하고 저장한다.
+6. 서버는 이미지와 OCR 원문 텍스트를 받지 않으며, 저장 요청의 `items`만 검증하고 저장한다.
 
-## 10.7 날짜별 근무 스케줄 삭제
+## 10.6 날짜별 근무 스케줄 삭제
 
 - `DELETE /api/v1/shifts/{date}`
 

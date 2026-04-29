@@ -315,9 +315,10 @@
 - Android 앱은 OCR 추출 결과를 `DAY`, `EVENING`, `NIGHT`, `MID`, `OFF` 저장 타입으로 정규화할 수 있어야 한다.
 - 지원 코드는 `/`, `D`, `E`, `n`, `m`이며 대소문자 보정은 허용한다.
 - `/`는 휴가를 포함한 쉬는 날로 취급하고 `OFF`로 매핑한다.
+- OCR 문자열 해석과 날짜별 스케줄 후보 생성은 Android 앱 내부에서 수행해야 한다.
 - 앱은 자동 추출 결과를 즉시 저장하지 않고 월간 수정 화면에 먼저 반영해야 한다.
 - 사용자가 수정/확정한 뒤 앱은 월별 일괄 저장 API를 호출해야 한다.
-- 서버의 저장 로직은 기존 월별 일괄 저장 API를 재사용하며 서버 이미지 OCR API는 제공하지 않는다.
+- 서버의 저장 로직은 기존 월별 일괄 저장 API를 재사용하며 서버 이미지 OCR API 또는 OCR 텍스트 프리뷰 API는 제공하지 않는다.
 
 ### 6.5 캘린더 조회
 
@@ -561,7 +562,6 @@
 - `GET /api/v1/shifts/date/2026-04-18`
 - `PUT /api/v1/shifts/2026-04-18`
 - `PUT /api/v1/shifts/monthly?year=2026&month=4`
-- `POST /api/v1/shifts/monthly/preview-from-text?year=2026&month=4`
 - `DELETE /api/v1/shifts/2026-04-18`
 
 ### 10.5 캘린더 통합 조회
