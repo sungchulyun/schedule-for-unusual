@@ -100,6 +100,7 @@ dependencies {
     implementation(libs.androidx.security.crypto)
     implementation("com.kakao.sdk:v2-user:2.23.4")
     implementation("com.kakao.sdk:v2-share:2.23.4")
+    implementation(libs.mlkit.text.recognition)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
