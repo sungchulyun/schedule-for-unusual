@@ -338,6 +338,7 @@ fun CalendarScreen(
                 isSubmitting = remoteState.isSubmitting,
                 errorMessage = remoteState.errorMessage,
                 onDismissError = calendarViewModel::clearError,
+                onMonthChanged = { currentMonth = it },
                 onBack = { screenMode = CalendarScreenMode.ENTRY_HOME },
                 onSaveBulkShifts = { updatedMonthShifts ->
                     calendarViewModel.saveMonthlyShifts(
@@ -1474,6 +1475,7 @@ private fun BulkShiftRegistrationScreen(
     isSubmitting: Boolean,
     errorMessage: String?,
     onDismissError: () -> Unit,
+    onMonthChanged: (YearMonth) -> Unit,
     onBack: () -> Unit,
     onSaveBulkShifts: (Map<LocalDate, ShiftType?>) -> Unit
 ) {
@@ -1552,6 +1554,45 @@ private fun BulkShiftRegistrationScreen(
                 errorMessage = errorMessage,
                 onDismissError = onDismissError
             )
+
+            Surface(
+                shape = RoundedCornerShape(20.dp),
+                color = MaterialTheme.colorScheme.surface,
+                tonalElevation = 1.dp
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    IconButton(
+                        onClick = { onMonthChanged(month.minusMonths(1)) },
+                        enabled = !ocrUiState.isRecognizing && !isSubmitting
+                    ) {
+                        Text(text = "<", style = MaterialTheme.typography.titleLarge)
+                    }
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = "등록 월",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = "${month.year}년 ${month.monthValue}월",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    IconButton(
+                        onClick = { onMonthChanged(month.plusMonths(1)) },
+                        enabled = !ocrUiState.isRecognizing && !isSubmitting
+                    ) {
+                        Text(text = ">", style = MaterialTheme.typography.titleLarge)
+                    }
+                }
+            }
 
             Surface(
                 shape = RoundedCornerShape(20.dp),
