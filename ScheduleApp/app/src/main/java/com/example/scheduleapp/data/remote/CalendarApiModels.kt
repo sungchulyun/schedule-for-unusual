@@ -45,14 +45,19 @@ data class AuthTokenDto(
 data class CalendarMonthResponse(
     val year: Int,
     val month: Int,
+    val filters: CalendarFilterDto? = null,
+    val meta: CalendarMetaDto? = null,
     val events: List<EventDto> = emptyList(),
-    val shifts: List<ShiftDto> = emptyList()
+    val shifts: List<ShiftDto> = emptyList(),
+    val days: List<CalendarDaySummaryDto> = emptyList()
 )
 
 data class CalendarDateResponse(
     val date: String,
+    val meta: CalendarMetaDto? = null,
     val events: List<EventDto> = emptyList(),
-    val shift: ShiftDto? = null
+    val shift: ShiftDto? = null,
+    val shifts: List<ShiftDto> = emptyList()
 )
 
 data class EventDto(
@@ -66,15 +71,78 @@ data class EventDto(
     val subjectType: String? = null,
     val ownerUserId: String? = null,
     val ownerType: String,
-    val note: String? = null
+    val note: String? = null,
+    val createdByUserId: String? = null,
+    val updatedByUserId: String? = null,
+    val createdAt: String? = null,
+    val updatedAt: String? = null,
+    val deletedAt: String? = null
 )
 
 data class ShiftDto(
     val id: String,
     val groupId: String? = null,
     val date: String,
+    val ownerUserId: String? = null,
+    val ownerType: String? = null,
+    val shiftType: String,
+    val createdByUserId: String? = null,
+    val updatedByUserId: String? = null,
+    val createdAt: String? = null,
+    val updatedAt: String? = null,
+    val deletedAt: String? = null
+)
+
+data class CalendarFilterDto(
+    val ownerTypes: List<String> = emptyList(),
+    val includeShifts: Boolean = true,
+    val shiftOwnerType: String? = null
+)
+
+data class CalendarMetaDto(
+    val groupId: String? = null,
+    val currentUserId: String? = null,
+    val members: List<CalendarMetaMemberDto> = emptyList(),
+    val shiftTypes: List<String> = emptyList()
+)
+
+data class CalendarMetaMemberDto(
+    val userId: String,
+    val role: String? = null
+)
+
+data class CalendarDaySummaryDto(
+    val date: String,
+    val shift: CalendarDayShiftDto? = null,
+    val shifts: List<CalendarDayShiftDto> = emptyList(),
+    val events: List<CalendarDayEventDto> = emptyList()
+)
+
+data class CalendarDayShiftDto(
+    val id: String,
+    val ownerUserId: String? = null,
     val ownerType: String? = null,
     val shiftType: String
+)
+
+data class CalendarDayEventDto(
+    val id: String,
+    val title: String,
+    val subjectType: String? = null,
+    val ownerUserId: String? = null,
+    val ownerType: String,
+    val startDate: String,
+    val endDate: String,
+    val startTime: String? = null,
+    val endTime: String? = null,
+    val isMultiDay: Boolean = false
+)
+
+data class MonthlyShiftResponse(
+    val year: Int,
+    val month: Int,
+    val replacedCount: Int,
+    val items: List<ShiftDto> = emptyList()
 )
 
 data class CreateEventRequest(

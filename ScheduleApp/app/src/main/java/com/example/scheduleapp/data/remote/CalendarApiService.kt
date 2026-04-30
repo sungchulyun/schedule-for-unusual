@@ -117,7 +117,7 @@ interface CalendarApiService {
         @Query("month") month: Int,
         @Header("X-Group-Id") groupId: String?,
         @Body request: MonthlyShiftRequest
-    ): Response<ApiEnvelope<CalendarMonthResponse>>
+    ): Response<ApiEnvelope<MonthlyShiftResponse>>
 
     @DELETE("api/v1/shifts/{date}")
     suspend fun deleteShift(
