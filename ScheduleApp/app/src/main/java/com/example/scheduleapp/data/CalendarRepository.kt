@@ -9,6 +9,7 @@ import com.example.scheduleapp.data.remote.AuthTokenDto
 import com.example.scheduleapp.data.remote.GroupMeResponse
 import com.example.scheduleapp.data.remote.KakaoMobileLoginRequest
 import com.example.scheduleapp.data.remote.CalendarApiService
+import com.example.scheduleapp.data.remote.CalendarMetaDto
 import com.example.scheduleapp.data.remote.CalendarMonthResponse
 import com.example.scheduleapp.data.remote.CreateInviteRequest
 import com.example.scheduleapp.data.remote.CreateInviteResponse
@@ -304,6 +305,7 @@ class CalendarRepository(
     }
 
     private fun CalendarMonthResponse.toDomain(): CalendarMonthData {
+        updateSessionContextFromMeta(meta)
         return CalendarMonthData(
             events = events.mapNotNull { it.toDomain() },
             shifts = shifts.mapNotNull { it.toDomain() }
@@ -327,6 +329,27 @@ class CalendarRepository(
 
     private fun AcceptInviteResponse.partnerUserId(currentUserId: String): String? {
         return members.firstOrNull { it.userId != currentUserId }?.userId
+    }
+
+    private fun updateSessionContextFromMeta(meta: CalendarMetaDto?) {
+        val current = AuthSessionManager.getSession() ?: return
+        val groupId = meta?.groupId?.ifBlank { null } ?: current.groupId
+        val currentUserId = meta?.currentUserId?.ifBlank { null } ?: current.currentUserId
+        val members = meta?.members.orEmpty()
+        val partnerUserId = if (members.isEmpty()) {
+            current.partnerUserId
+        } else {
+            members.firstOrNull { it.userId != currentUserId }
+                ?.userId
+        }
+        if (groupId != current.groupId || partnerUserId != current.partnerUserId) {
+            AuthSessionManager.saveSession(
+                current.copy(
+                    groupId = groupId,
+                    partnerUserId = partnerUserId
+                )
+            )
+        }
     }
 
     private fun EventDto.toDomain(): CalendarEvent? {
