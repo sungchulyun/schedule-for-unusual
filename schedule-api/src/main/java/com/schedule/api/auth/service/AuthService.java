@@ -186,6 +186,9 @@ public class AuthService {
 
         AppUser user = appUserRepository.findById(savedToken.getUserId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.AUTH_UNAUTHORIZED, "User not found"));
+        if (user.getStatus() != UserStatus.ACTIVE) {
+            throw new BusinessException(ErrorCode.AUTH_UNAUTHORIZED, "User is not active");
+        }
 
         savedToken.revoke(Instant.now());
         AuthenticatedUser authenticatedUser = new AuthenticatedUser(user.getId(), user.getGroupId(), user.getNickname());

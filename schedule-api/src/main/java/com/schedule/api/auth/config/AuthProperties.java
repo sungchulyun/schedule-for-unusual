@@ -29,7 +29,7 @@ public class AuthProperties {
         private String issuer = "schedule-api";
         private String secret = "change-me-change-me-change-me-change-me";
         private long accessTokenExpirySeconds = 3600;
-        private long refreshTokenExpirySeconds = 1209600;
+        private long refreshTokenExpirySeconds = 7776000;
 
         public String getIssuer() {
             return issuer;

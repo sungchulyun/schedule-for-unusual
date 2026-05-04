@@ -35,7 +35,7 @@ app:
       issuer: ${APP_AUTH_JWT_ISSUER:schedule-api}
       secret: ${APP_AUTH_JWT_SECRET}
       access-token-expiry-seconds: ${APP_AUTH_JWT_ACCESS_TOKEN_EXPIRY_SECONDS:3600}
-      refresh-token-expiry-seconds: ${APP_AUTH_JWT_REFRESH_TOKEN_EXPIRY_SECONDS:1209600}
+      refresh-token-expiry-seconds: ${APP_AUTH_JWT_REFRESH_TOKEN_EXPIRY_SECONDS:7776000}
 
     kakao:
       client-id: ${APP_AUTH_KAKAO_CLIENT_ID}
