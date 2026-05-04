@@ -163,7 +163,7 @@ DB 저장 기준의 절대값이다.
   "refreshToken": "eyJhbGciOiJIUzI1NiJ9...",
   "tokenType": "Bearer",
   "expiresIn": 3600,
-  "refreshTokenExpiresIn": 1209600
+  "refreshTokenExpiresIn": 7776000
 }
 ```
 
@@ -350,7 +350,7 @@ DB 저장 기준의 절대값이다.
       "refreshToken": "eyJhbGciOiJIUzI1NiJ9...",
       "tokenType": "Bearer",
       "expiresIn": 3600,
-      "refreshTokenExpiresIn": 1209600
+      "refreshTokenExpiresIn": 7776000
     },
     "isNewUser": true
   }
@@ -1296,7 +1296,7 @@ Query Parameters:
       "refreshToken": "eyJhbGciOiJIUzI1NiJ9...",
       "tokenType": "Bearer",
       "expiresIn": 3600,
-      "refreshTokenExpiresIn": 1209600
+      "refreshTokenExpiresIn": 7776000
     }
   }
 }
