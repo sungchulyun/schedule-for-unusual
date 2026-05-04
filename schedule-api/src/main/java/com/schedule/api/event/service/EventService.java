@@ -1,5 +1,7 @@
 package com.schedule.api.event.service;
 
+import com.schedule.api.auth.domain.AppUser;
+import com.schedule.api.auth.repository.AppUserRepository;
 import com.schedule.api.common.context.RequestContext;
 import com.schedule.api.common.exception.BusinessException;
 import com.schedule.api.common.exception.ErrorCode;
@@ -32,17 +34,20 @@ import org.springframework.transaction.annotation.Transactional;
 public class EventService {
 
     private final EventRepository eventRepository;
+    private final AppUserRepository appUserRepository;
     private final IdGenerator idGenerator;
     private final ApplicationEventPublisher eventPublisher;
     private final NotificationService notificationService;
 
     public EventService(
             EventRepository eventRepository,
+            AppUserRepository appUserRepository,
             IdGenerator idGenerator,
             ApplicationEventPublisher eventPublisher,
             NotificationService notificationService
     ) {
         this.eventRepository = eventRepository;
+        this.appUserRepository = appUserRepository;
         this.idGenerator = idGenerator;
         this.eventPublisher = eventPublisher;
         this.notificationService = notificationService;
@@ -91,6 +96,7 @@ public class EventService {
                 request.subjectType(),
                 request.ownerUserId()
         );
+        validateGroupMembership(context, request.subjectType(), request.ownerUserId());
 
         Instant now = Instant.now();
         Event event = new Event(
@@ -134,6 +140,7 @@ public class EventService {
 
         validateTitle(title);
         validateEventRule(startDate, endDate, startTime, endTime, subjectType, ownerUserId);
+        validateGroupMembership(context, subjectType, ownerUserId);
 
         event.update(
                 title,
@@ -186,6 +193,33 @@ public class EventService {
 
         if (subjectType == EventSubjectType.PERSONAL && (ownerUserId == null || ownerUserId.isBlank())) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "ownerUserId is required when subjectType is PERSONAL");
+        }
+    }
+
+    private void validateGroupMembership(RequestContext context, EventSubjectType subjectType, String ownerUserId) {
+        List<AppUser> members = appUserRepository.findAllByGroupIdOrderByCreatedAtAsc(context.groupId());
+        if (members.isEmpty()) {
+            return;
+        }
+
+        boolean currentUserInGroup = members.stream()
+                .anyMatch(member -> member.getId().equals(context.userId()));
+        if (!currentUserInGroup) {
+            throw new BusinessException(ErrorCode.GROUP_ACCESS_DENIED);
+        }
+
+        if (subjectType != EventSubjectType.PERSONAL) {
+            return;
+        }
+
+        String normalizedOwnerUserId = ownerUserId == null ? null : ownerUserId.trim();
+        boolean ownerInGroup = members.stream()
+                .anyMatch(member -> member.getId().equals(normalizedOwnerUserId));
+        if (!ownerInGroup) {
+            throw new BusinessException(
+                    ErrorCode.GROUP_ACCESS_DENIED,
+                    "ownerUserId must be a member of the current group"
+            );
         }
     }
 
