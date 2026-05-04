@@ -5,13 +5,20 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.Table;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
 
 @Entity
-@Table(name = "events")
+@Table(
+        name = "events",
+        indexes = {
+                @Index(name = "idx_events_group_date_deleted", columnList = "group_id,start_date,end_date,deleted_at"),
+                @Index(name = "idx_events_group_owner_deleted", columnList = "group_id,owner_user_id,deleted_at")
+        }
+)
 public class Event {
 
     @Id

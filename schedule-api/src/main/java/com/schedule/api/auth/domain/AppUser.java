@@ -5,11 +5,18 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.Table;
 import java.time.Instant;
 
 @Entity
-@Table(name = "users")
+@Table(
+        name = "users",
+        indexes = {
+                @Index(name = "idx_users_group_created", columnList = "group_id,created_at"),
+                @Index(name = "idx_users_oauth_provider_user", columnList = "oauth_provider,oauth_provider_user_id")
+        }
+)
 public class AppUser {
 
     @Id

@@ -3,11 +3,18 @@ package com.schedule.api.auth.domain;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.Table;
 import java.time.Instant;
 
 @Entity
-@Table(name = "refresh_tokens")
+@Table(
+        name = "refresh_tokens",
+        indexes = {
+                @Index(name = "idx_refresh_tokens_user_created", columnList = "user_id,created_at"),
+                @Index(name = "idx_refresh_tokens_expires_revoked", columnList = "expires_at,revoked_at")
+        }
+)
 public class RefreshToken {
 
     @Id
