@@ -301,7 +301,16 @@ public class CalendarQueryService {
                 .filter(member -> member.getId().equals(context.userId()))
                 .findFirst()
                 .orElseThrow(() -> new BusinessException(ErrorCode.AUTH_UNAUTHORIZED, "User not found"));
-        return EventOwnerType.valueOf(currentUser.getDefaultShiftOwnerType().name());
+        EventOwnerType defaultShiftOwnerType = EventOwnerType.valueOf(currentUser.getDefaultShiftOwnerType().name());
+        if (defaultShiftOwnerType == EventOwnerType.PARTNER && !hasPartner(context, members)) {
+            return EventOwnerType.ME;
+        }
+        return defaultShiftOwnerType;
+    }
+
+    private boolean hasPartner(RequestContext context, List<AppUser> members) {
+        return members.stream()
+                .anyMatch(member -> !member.getId().equals(context.userId()));
     }
 
     private void validateShiftOwnerType(EventOwnerType shiftOwnerType) {
