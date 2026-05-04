@@ -7,6 +7,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.schedule.api.auth.domain.DefaultShiftOwnerType;
 import com.schedule.api.auth.domain.AppUser;
 import com.schedule.api.auth.domain.OAuthProvider;
 import com.schedule.api.auth.domain.UserStatus;
@@ -286,5 +287,42 @@ class CalendarControllerIntegrationTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error.code").value("VALIDATION_ERROR"))
                 .andExpect(jsonPath("$.error.message").value("year must be between 2000 and 2100"));
+    }
+
+    @Test
+    void fallsBackToOwnShiftWhenDefaultPartnerShiftOwnerHasNoPartner() throws Exception {
+        appUserRepository.save(new AppUser(
+                "usr_single_default_partner",
+                OAuthProvider.KAKAO,
+                "kakao-single-default-partner",
+                "single",
+                null,
+                "grp_single_default_partner",
+                DefaultShiftOwnerType.PARTNER,
+                UserStatus.ACTIVE,
+                Instant.now(),
+                Instant.now()
+        ));
+
+        mockMvc.perform(put("/api/v1/shifts/2026-04-20")
+                        .header("X-Group-Id", "grp_single_default_partner")
+                        .header("X-User-Id", "usr_single_default_partner")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "shiftType": "DAY"
+                                }
+                                """))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/v1/calendar/month")
+                        .header("X-Group-Id", "grp_single_default_partner")
+                        .header("X-User-Id", "usr_single_default_partner")
+                        .param("year", "2026")
+                        .param("month", "4"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.filters.shiftOwnerType").value("ME"))
+                .andExpect(jsonPath("$.data.shifts.length()").value(1))
+                .andExpect(jsonPath("$.data.shifts[0].ownerUserId").value("usr_single_default_partner"));
     }
 }

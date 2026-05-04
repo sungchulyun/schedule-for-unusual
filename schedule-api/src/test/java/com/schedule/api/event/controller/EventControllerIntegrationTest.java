@@ -7,6 +7,11 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.schedule.api.auth.domain.AppUser;
+import com.schedule.api.auth.domain.OAuthProvider;
+import com.schedule.api.auth.domain.UserStatus;
+import com.schedule.api.auth.repository.AppUserRepository;
+import java.time.Instant;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -22,6 +27,9 @@ class EventControllerIntegrationTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @Autowired
+    private AppUserRepository appUserRepository;
 
     @Test
     void createsAndQueriesAndDeletesEvent() throws Exception {
@@ -174,5 +182,49 @@ class EventControllerIntegrationTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error.code").value("VALIDATION_ERROR"))
                 .andExpect(jsonPath("$.error.message").value("title must not be blank"));
+    }
+
+    @Test
+    void rejectsPersonalEventOwnerOutsideCurrentGroup() throws Exception {
+        appUserRepository.save(new AppUser(
+                "usr_event_member",
+                OAuthProvider.KAKAO,
+                "kakao-event-member",
+                "member",
+                null,
+                "grp_event_membership",
+                UserStatus.ACTIVE,
+                Instant.now(),
+                Instant.now()
+        ));
+        appUserRepository.save(new AppUser(
+                "usr_event_other",
+                OAuthProvider.KAKAO,
+                "kakao-event-other",
+                "other",
+                null,
+                "grp_event_other",
+                UserStatus.ACTIVE,
+                Instant.now(),
+                Instant.now()
+        ));
+
+        mockMvc.perform(post("/api/v1/events")
+                        .header("X-Group-Id", "grp_event_membership")
+                        .header("X-User-Id", "usr_event_member")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "title": "다른 그룹 일정",
+                                  "startDate": "2026-04-18",
+                                  "endDate": "2026-04-18",
+                                  "startTime": "09:00",
+                                  "endTime": "10:00",
+                                  "subjectType": "PERSONAL",
+                                  "ownerUserId": "usr_event_other"
+                                }
+                                """))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.error.code").value("GROUP_ACCESS_DENIED"));
     }
 }

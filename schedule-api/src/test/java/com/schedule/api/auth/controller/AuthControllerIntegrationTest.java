@@ -48,6 +48,7 @@ class AuthControllerIntegrationTest {
                 .andExpect(jsonPath("$.data.user.nickname").value("성철"))
                 .andExpect(jsonPath("$.data.tokens.accessToken").exists())
                 .andExpect(jsonPath("$.data.tokens.refreshToken").exists())
+                .andExpect(jsonPath("$.data.tokens.refreshTokenExpiresIn").value(7776000))
                 .andReturn()
                 .getResponse()
                 .getContentAsString();
