@@ -8,6 +8,7 @@ import com.schedule.api.common.exception.BusinessException;
 import com.schedule.api.common.exception.ErrorCode;
 import com.schedule.api.common.util.IdGenerator;
 import com.schedule.api.group.domain.GroupInvite;
+import com.schedule.api.group.domain.GroupMembers;
 import com.schedule.api.group.domain.InviteStatus;
 import com.schedule.api.group.dto.AcceptInviteResponse;
 import com.schedule.api.group.dto.CreateGroupResponse;
@@ -67,16 +68,14 @@ public class GroupService {
     @Transactional
     public CreateGroupResponse createGroup(AuthenticatedUser authenticatedUser) {
         AppUser user = requireUser(authenticatedUser.userId());
-        List<AppUser> currentMembers = groupQueryService.loadGroupMembers(user.getGroupId());
 
-        if (currentMembers.size() > 1) {
-            throw new BusinessException(ErrorCode.GROUP_PARTNER_ALREADY_EXISTS, "Cannot recreate a group with partner connected");
-        }
+        GroupMembers currentMembers = groupQueryService.loadGroupMembers(user.getGroupId());
+        currentMembers.validateCanRecreateGroup();
 
         String newGroupId = idGenerator.generate("grp_");
-        user.changeGroup(newGroupId, Instant.now());
+        user.recreateGroup(newGroupId, Instant.now());
 
-        return new CreateGroupResponse(newGroupId, List.of(new GroupMemberResponse(user.getId(), "OWNER", "PENDING")));
+        return CreateGroupResponse.ownerPending(newGroupId, user.getId());
     }
 
     @Transactional
