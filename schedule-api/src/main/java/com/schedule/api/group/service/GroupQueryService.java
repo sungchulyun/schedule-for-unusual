@@ -5,6 +5,7 @@ import com.schedule.api.auth.repository.AppUserRepository;
 import com.schedule.api.calendar.dto.CalendarMetaMemberResponse;
 import com.schedule.api.common.exception.BusinessException;
 import com.schedule.api.common.exception.ErrorCode;
+import com.schedule.api.group.domain.GroupMembers;
 import com.schedule.api.group.dto.GroupMemberResponse;
 import com.schedule.api.group.dto.GroupPermissionsResponse;
 import java.util.List;
@@ -19,12 +20,9 @@ public class GroupQueryService {
         this.appUserRepository = appUserRepository;
     }
 
-    public List<AppUser> loadGroupMembers(String groupId) {
+    public GroupMembers loadGroupMembers(String groupId) {
         List<AppUser> members = appUserRepository.findAllByGroupIdOrderByCreatedAtAsc(groupId);
-        if (members.isEmpty()) {
-            throw new BusinessException(ErrorCode.GROUP_NOT_FOUND);
-        }
-        return members;
+        return new GroupMembers(members);
     }
 
     public List<GroupMemberResponse> toGroupMembers(List<AppUser> members) {
