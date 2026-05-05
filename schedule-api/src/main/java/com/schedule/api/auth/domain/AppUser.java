@@ -1,5 +1,6 @@
 package com.schedule.api.auth.domain;
 
+import com.schedule.api.common.exception.BusinessException;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -8,6 +9,8 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Index;
 import jakarta.persistence.Table;
 import java.time.Instant;
+
+import static com.schedule.api.common.exception.ErrorCode.GROUP_MEMBER_LIMIT_EXCEEDED;
 
 @Entity
 @Table(
@@ -111,8 +114,11 @@ public class AppUser {
         this.updatedAt = updatedAt;
     }
 
-    public void changeGroup(String groupId, Instant updatedAt) {
-        this.groupId = groupId;
+    public void recreateGroup(String newGroupId, Instant updatedAt) {
+        if(newGroupId == null || newGroupId.isBlank()){
+            throw new IllegalArgumentException("newGroupId must be not blank");
+        }
+        this.groupId = newGroupId;
         this.updatedAt = updatedAt;
     }
 
