@@ -11,6 +11,7 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 
 import static com.schedule.api.common.exception.ErrorCode.GROUP_INVITE_EXPIRED;
+import static com.schedule.api.common.exception.ErrorCode.INVALID_GROUP_INVITE_STATUS;
 
 @Entity
 @Table(name = "group_invites")
@@ -87,6 +88,29 @@ public class GroupInvite {
 
     public boolean isActive (Instant now){
         return status == InviteStatus.PENDING && expiresAt.isAfter(now);
+    }
+
+    public boolean isExpired(Instant now){
+        return !expiresAt.isAfter(now);
+    }
+
+    public void expireIfExpired(Instant now){
+        if(status == InviteStatus.PENDING && isExpired(now)){
+            this.status = InviteStatus.EXPIRED;
+        }
+    }
+
+    public void accept(Instant now){
+        if(status != InviteStatus.PENDING) {
+            throw new BusinessException(INVALID_GROUP_INVITE_STATUS);
+        }
+
+        if(isExpired(now)){
+            this.status = InviteStatus.EXPIRED;
+            throw new BusinessException(GROUP_INVITE_EXPIRED);
+        }
+
+        this.status = InviteStatus.ACCEPTED;
     }
 
     public void markAccepted() {

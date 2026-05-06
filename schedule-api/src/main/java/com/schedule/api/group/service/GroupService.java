@@ -21,6 +21,8 @@ import com.schedule.api.group.repository.GroupInviteRepository;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Optional;
+
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -88,24 +90,24 @@ public class GroupService {
         members.validateCanRecreateInvite();
 
         Instant now = Instant.now();
-        GroupInvite existingInvite = groupInviteRepository
-                .findFirstByGroupIdAndStatusOrderByCreatedAtDesc(user.getGroupId(), InviteStatus.PENDING)
-                .orElse(null);
+        Optional<GroupInvite> existingInvite = groupInviteRepository
+                .findFirstByGroupIdAndStatusOrderByCreatedAtDesc(user.getGroupId(), InviteStatus.PENDING);
 
-        if (existingInvite != null) {
-            if (existingInvite.getExpiresAt().isAfter(now)) {
-                return buildCreateInviteResponse(existingInvite);
+        if(existingInvite.isPresent()){
+            GroupInvite invite = existingInvite.get();
+
+            if(invite.isActive(now)){
+                return buildCreateInviteResponse(invite);
             }
-            existingInvite.markExpired();
+
+            invite.expireIfExpired(now);
         }
 
-        GroupInvite invite = new GroupInvite(
+        GroupInvite invite = GroupInvite.create(
                 idGenerator.generate("inv_"),
                 user.getGroupId(),
                 generateInviteCode(),
                 idGenerator.generate("itk_"),
-                InviteStatus.PENDING,
-                now.plus(7, ChronoUnit.DAYS),
                 user.getId(),
                 now
         );
