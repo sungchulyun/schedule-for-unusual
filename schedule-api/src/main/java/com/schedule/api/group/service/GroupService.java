@@ -132,16 +132,25 @@ public class GroupService {
     @Transactional
     public InviteLookupResponse getInvite(String inviteToken) {
         GroupInvite invite = requireInviteByToken(inviteToken);
-        if (invite.getStatus() == InviteStatus.PENDING && invite.getExpiresAt().isBefore(Instant.now())) {
-            invite.markExpired();
+        Instant now = Instant.now();
+
+        if(!invite.isActive(now)){
+            invite.expireIfExpired(now);
             throw new BusinessException(ErrorCode.GROUP_INVITE_EXPIRED);
         }
 
         AppUser inviter = requireUser(invite.getCreatedByUserId());
+        return buildInviteLookupResponse(invite, inviter);
+    }
+
+    private InviteLookupResponse buildInviteLookupResponse(GroupInvite invite, AppUser inviter) {
         return new InviteLookupResponse(
                 invite.getId(),
                 invite.getGroupId(),
-                new InviteInviterResponse(inviter.getId(), inviter.getNickname()),
+                new InviteInviterResponse(
+                        inviter.getId(),
+                        inviter.getNickname()
+                ),
                 invite.getStatus().name(),
                 true,
                 invite.getExpiresAt()
