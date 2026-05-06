@@ -12,20 +12,20 @@ public class GroupMembers {
 
     public GroupMembers(List<AppUser> members) {
         if(members == null || members.isEmpty()){
-            throw new BusinessException(ErrorCode.GROUP_PARTNER_ALREADY_EXISTS, "Invite cannot be created when partner already exists");
+            throw new BusinessException(ErrorCode.GROUP_NOT_FOUND);
         }
         this.members = List.copyOf(members);
     }
 
     public void validateCanRecreateGroup(){
         if(hasPartner()){
-            throw new BusinessException(ErrorCode.GROUP_PARTNER_ALREADY_EXISTS, "cannot recreate a group with partner connected");
+            throw new BusinessException(ErrorCode.GROUP_PARTNER_ALREADY_EXISTS);
         }
     }
 
     public void validateCanRecreateInvite(){
         if(hasPartner()){
-            throw new BusinessException(ErrorCode.GROUP_PARTNER_ALREADY_EXISTS, "cannot invite someone with partner connected");
+            throw new BusinessException(ErrorCode.GROUP_PARTNER_ALREADY_EXISTS);
         }
     }
 
