@@ -57,10 +57,10 @@ public class GroupService {
     }
 
     public GroupMeResponse getMyGroup(AuthenticatedUser authenticatedUser) {
-        List<AppUser> members = groupQueryService.loadGroupMembers(authenticatedUser.groupId());
+        GroupMembers members = groupQueryService.loadGroupMembers(authenticatedUser.groupId());
         return new GroupMeResponse(
                 authenticatedUser.groupId(),
-                groupQueryService.toGroupMembers(members),
+                groupQueryService.toGroupMembers(members.values()),
                 groupQueryService.defaultPermissions()
         );
     }
@@ -84,7 +84,6 @@ public class GroupService {
 
         AppUser user = requireUser(authenticatedUser.userId());
         List<AppUser> members = groupQueryService.loadGroupMembers(user.getGroupId());
-
         if (members.size() >= 2) {
             throw new BusinessException(ErrorCode.GROUP_PARTNER_ALREADY_EXISTS, "Invite cannot be created when partner already exists");
         }
