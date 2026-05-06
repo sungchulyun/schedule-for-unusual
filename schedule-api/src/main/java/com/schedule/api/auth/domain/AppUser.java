@@ -115,11 +115,21 @@ public class AppUser {
     }
 
     public void recreateGroup(String newGroupId, Instant updatedAt) {
-        if(newGroupId == null || newGroupId.isBlank()){
-            throw new IllegalArgumentException("newGroupId must be not blank");
-        }
+        validateGroupId(newGroupId);
         this.groupId = newGroupId;
         this.updatedAt = updatedAt;
+    }
+
+    public void joinGroup(String groupId, Instant updatedAt) {
+        validateGroupId(groupId);
+        this.groupId = groupId;
+        this.updatedAt = updatedAt;
+    }
+
+    private void validateGroupId(String groupId) {
+        if (groupId == null || groupId.isBlank()) {
+            throw new IllegalArgumentException("groupId must not be blank");
+        }
     }
 
     public void updateDefaultShiftOwnerType(DefaultShiftOwnerType defaultShiftOwnerType, Instant updatedAt) {
