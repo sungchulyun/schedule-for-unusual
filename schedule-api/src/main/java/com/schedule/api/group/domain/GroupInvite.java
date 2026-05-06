@@ -10,8 +10,7 @@ import jakarta.persistence.Table;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 
-import static com.schedule.api.common.exception.ErrorCode.GROUP_INVITE_EXPIRED;
-import static com.schedule.api.common.exception.ErrorCode.INVALID_GROUP_INVITE_STATUS;
+import static com.schedule.api.common.exception.ErrorCode.*;
 
 @Entity
 @Table(name = "group_invites")
@@ -46,7 +45,7 @@ public class GroupInvite {
     protected GroupInvite() {
     }
 
-    public GroupInvite(
+    private GroupInvite(
             String id,
             String groupId,
             String code,
@@ -100,24 +99,34 @@ public class GroupInvite {
         }
     }
 
+    public void validateSelfGroupInvite(String userId){
+        if(getCreatedByUserId().equals(userId)){
+            throw new BusinessException(GROUP_SELF_INVITE_NOT_ALLOWED);
+        }
+    }
+
+    public boolean isAlreadyAcceptedBy(String userGroupId){
+        return userGroupId.equals(groupId) && status == InviteStatus.ACCEPTED;
+    }
+
     public void accept(Instant now){
         if(status != InviteStatus.PENDING) {
             throw new BusinessException(INVALID_GROUP_INVITE_STATUS);
         }
 
         if(isExpired(now)){
-            this.status = InviteStatus.EXPIRED;
+            markExpired();
             throw new BusinessException(GROUP_INVITE_EXPIRED);
         }
 
+        markAccepted();
+    }
+
+    private void markAccepted() {
         this.status = InviteStatus.ACCEPTED;
     }
 
-    public void markAccepted() {
-        this.status = InviteStatus.ACCEPTED;
-    }
-
-    public void markExpired() {
+    private void markExpired() {
         this.status = InviteStatus.EXPIRED;
     }
 
