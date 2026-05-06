@@ -159,35 +159,26 @@ public class GroupService {
 
     @Transactional
     public AcceptInviteResponse acceptInvite(AuthenticatedUser authenticatedUser, String inviteCode, String inviteToken) {
-        AppUser user = requireUser(authenticatedUser.userId());
-        GroupInvite invite = resolveInvite(inviteCode, inviteToken);
+        Instant now = Instant.now();
 
-        if (invite.getCreatedByUserId().equals(user.getId())) {
-            throw new BusinessException(ErrorCode.GROUP_SELF_INVITE_NOT_ALLOWED);
-        }
-        if (invite.getStatus() == InviteStatus.ACCEPTED && user.getGroupId().equals(invite.getGroupId())) {
+        AppUser user = requireUser(authenticatedUser.userId());
+
+        GroupInvite invite = resolveInvite(inviteCode, inviteToken);
+        invite.validateSelfGroupInvite(user.getId());
+
+        if (invite.isAlreadyAcceptedBy(user.getGroupId())) {
             return buildAcceptInviteResponse(invite.getGroupId(), invite.getId(), user);
         }
-        if (invite.getStatus() != InviteStatus.PENDING) {
-            throw new BusinessException(ErrorCode.GROUP_INVITE_NOT_FOUND, "Invite is no longer available");
-        }
-        if (invite.getExpiresAt().isBefore(Instant.now())) {
-            invite.markExpired();
-            throw new BusinessException(ErrorCode.GROUP_INVITE_EXPIRED);
-        }
 
-        List<AppUser> targetMembers = groupQueryService.loadGroupMembers(invite.getGroupId());
-        if (targetMembers.size() >= 2) {
-            throw new BusinessException(ErrorCode.GROUP_MEMBER_LIMIT_EXCEEDED);
-        }
+        GroupMembers targetMembers = groupQueryService.loadGroupMembers(invite.getGroupId());
+        targetMembers.validateCanAcceptInvite();
 
-        List<AppUser> currentMembers = groupQueryService.loadGroupMembers(user.getGroupId());
-        if (currentMembers.size() > 1 && !user.getGroupId().equals(invite.getGroupId())) {
-            throw new BusinessException(ErrorCode.USER_ALREADY_IN_GROUP);
-        }
+        GroupMembers currentMembers = groupQueryService.loadGroupMembers(user.getGroupId());
+        currentMembers.validateCanAcceptInvite();
 
-        user.changeGroup(invite.getGroupId(), Instant.now());
-        invite.markAccepted();
+        user.joinGroup(invite.getGroupId(), now);
+
+        invite.accept(now);
 
         return buildAcceptInviteResponse(invite.getGroupId(), invite.getId(), user);
     }
