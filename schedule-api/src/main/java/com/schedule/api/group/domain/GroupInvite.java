@@ -1,5 +1,6 @@
 package com.schedule.api.group.domain;
 
+import com.schedule.api.common.exception.BusinessException;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -7,6 +8,9 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+
+import static com.schedule.api.common.exception.ErrorCode.GROUP_INVITE_EXPIRED;
 
 @Entity
 @Table(name = "group_invites")
@@ -59,6 +63,30 @@ public class GroupInvite {
         this.expiresAt = expiresAt;
         this.createdByUserId = createdByUserId;
         this.createdAt = createdAt;
+    }
+
+    public static GroupInvite create(
+            String id,
+            String groupId,
+            String code,
+            String inviteToken,
+            String createdByUserId,
+            Instant now
+    ){
+        return new GroupInvite(
+                id,
+                groupId,
+                code,
+                inviteToken,
+                InviteStatus.PENDING,
+                now.plus(7, ChronoUnit.DAYS),
+                createdByUserId,
+                now
+        );
+    }
+
+    public boolean isActive (Instant now){
+        return status == InviteStatus.PENDING && expiresAt.isAfter(now);
     }
 
     public void markAccepted() {
