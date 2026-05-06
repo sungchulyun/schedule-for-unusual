@@ -29,6 +29,12 @@ public class GroupMembers {
         }
     }
 
+    public void validateCanAcceptInvite(){
+        if(hasPartner()){
+            throw new BusinessException(ErrorCode.GROUP_MEMBER_LIMIT_EXCEEDED);
+        }
+    }
+
     public boolean hasPartner() {
         return members.size() > 1;
     }
