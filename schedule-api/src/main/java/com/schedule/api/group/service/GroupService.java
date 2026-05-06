@@ -183,10 +183,6 @@ public class GroupService {
         return buildAcceptInviteResponse(invite.getGroupId(), invite.getId(), user);
     }
 
-    public List<GroupMemberResponse> getGroupMembers(String groupId) {
-        return groupQueryService.toGroupMembers(groupQueryService.loadGroupMembers(groupId));
-    }
-
     private AppUser requireUser(String userId) {
         return appUserRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.AUTH_UNAUTHORIZED, "User not found"));
