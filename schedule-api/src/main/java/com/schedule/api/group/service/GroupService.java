@@ -215,12 +215,12 @@ public class GroupService {
     }
 
     private AcceptInviteResponse buildAcceptInviteResponse(String groupId, String inviteId, AppUser user) {
-        List<AppUser> members = groupQueryService.loadGroupMembers(groupId);
+        GroupMembers members = groupQueryService.loadGroupMembers(groupId);
         return new AcceptInviteResponse(
                 groupId,
                 inviteId,
                 true,
-                groupQueryService.toGroupMembers(members),
+                groupQueryService.toGroupMembers(members.values()),
                 groupQueryService.defaultPermissions(),
                 authService.issueTokensForUser(user)
         );
