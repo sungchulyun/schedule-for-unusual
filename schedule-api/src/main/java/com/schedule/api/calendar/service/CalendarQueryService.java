@@ -17,6 +17,7 @@ import com.schedule.api.event.domain.EventOwnerType;
 import com.schedule.api.event.domain.EventSubjectType;
 import com.schedule.api.event.dto.EventResponse;
 import com.schedule.api.event.repository.EventRepository;
+import com.schedule.api.group.domain.GroupMembers;
 import com.schedule.api.group.service.GroupQueryService;
 import com.schedule.api.shift.domain.ShiftSchedule;
 import com.schedule.api.shift.dto.ShiftResponse;
@@ -64,9 +65,9 @@ public class CalendarQueryService {
         YearMonth yearMonth = YearMonth.of(year, month);
         LocalDate startDate = yearMonth.atDay(1);
         LocalDate endDate = yearMonth.atEndOfMonth();
-        List<AppUser> members = groupQueryService.loadGroupMembers(context.groupId());
-        EventOwnerType effectiveShiftOwnerType = resolveEffectiveShiftOwnerType(context, members, shiftOwnerType);
-        String shiftOwnerUserId = resolveShiftOwnerUserId(context, members, effectiveShiftOwnerType);
+        GroupMembers members = groupQueryService.loadGroupMembers(context.groupId());
+        EventOwnerType effectiveShiftOwnerType = resolveEffectiveShiftOwnerType(context, members.values(), shiftOwnerType);
+        String shiftOwnerUserId = resolveShiftOwnerUserId(context, members.values(), effectiveShiftOwnerType);
 
         List<EventResponse> events = eventRepository.findActiveEventsInRange(context.groupId(), startDate, endDate)
                 .stream()
@@ -86,7 +87,7 @@ public class CalendarQueryService {
                 year,
                 month,
                 new CalendarFilterResponse(toOwnerTypeNames(ownerTypes), includeShifts, effectiveShiftOwnerType.name()),
-                buildMeta(context, members),
+                buildMeta(context, members.values()),
                 events,
                 shifts,
                 buildDaySummaries(yearMonth, events, shifts, includeShifts)
@@ -101,9 +102,9 @@ public class CalendarQueryService {
             EventOwnerType shiftOwnerType
     ) {
         validateShiftOwnerType(shiftOwnerType);
-        List<AppUser> members = groupQueryService.loadGroupMembers(context.groupId());
-        EventOwnerType effectiveShiftOwnerType = resolveEffectiveShiftOwnerType(context, members, shiftOwnerType);
-        String shiftOwnerUserId = resolveShiftOwnerUserId(context, members, effectiveShiftOwnerType);
+        GroupMembers members = groupQueryService.loadGroupMembers(context.groupId());
+        EventOwnerType effectiveShiftOwnerType = resolveEffectiveShiftOwnerType(context, members.values(), shiftOwnerType);
+        String shiftOwnerUserId = resolveShiftOwnerUserId(context, members.values(), effectiveShiftOwnerType);
         List<EventResponse> events = eventRepository.findActiveEventsInRange(context.groupId(), date, date)
                 .stream()
                 .map(event -> toEventResponse(event, context.userId()))
@@ -124,7 +125,7 @@ public class CalendarQueryService {
                 .findFirst()
                 .orElse(null);
 
-        return new CalendarDateResponse(date, buildMeta(context, members), shift, shifts, events);
+        return new CalendarDateResponse(date, buildMeta(context, members.values()), shift, shifts, events);
     }
 
     private EventResponse toEventResponse(Event event, String currentUserId) {
