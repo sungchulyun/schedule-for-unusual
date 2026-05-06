@@ -83,10 +83,9 @@ public class GroupService {
         validateInviteChannel(channel);
 
         AppUser user = requireUser(authenticatedUser.userId());
-        List<AppUser> members = groupQueryService.loadGroupMembers(user.getGroupId());
-        if (members.size() >= 2) {
-            throw new BusinessException(ErrorCode.GROUP_PARTNER_ALREADY_EXISTS, "Invite cannot be created when partner already exists");
-        }
+
+        GroupMembers members = groupQueryService.loadGroupMembers(user.getGroupId());
+        members.validateCanRecreateInvite();
 
         Instant now = Instant.now();
         GroupInvite existingInvite = groupInviteRepository

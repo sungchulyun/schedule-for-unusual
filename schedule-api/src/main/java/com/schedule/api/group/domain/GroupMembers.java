@@ -23,6 +23,12 @@ public class GroupMembers {
         }
     }
 
+    public void validateCanRecreateInvite(){
+        if(hasPartner()){
+            throw new BusinessException(ErrorCode.GROUP_PARTNER_ALREADY_EXISTS, "cannot invite someone with partner connected");
+        }
+    }
+
     public boolean hasPartner() {
         return members.size() > 1;
     }
