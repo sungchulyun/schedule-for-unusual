@@ -92,6 +92,14 @@ public class ShiftSchedule {
         this.deletedAt = deletedAt;
     }
 
+    public String resolveOwnerType(String currentUserId){
+        if(ownerUserId.equals(currentUserId)){
+            return "ME";
+        } else {
+            return "PARTNER";
+        }
+    }
+
     public String getId() {
         return id;
     }
