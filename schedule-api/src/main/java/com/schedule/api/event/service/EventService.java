@@ -87,34 +87,23 @@ public class EventService {
 
     @Transactional
     public EventResponse createEvent(RequestContext context, CreateEventRequest request) {
-        validateTitle(request.title());
-        validateEventRule(
-                request.startDate(),
-                request.endDate(),
-                request.startTime(),
-                request.endTime(),
-                request.subjectType(),
-                request.ownerUserId()
-        );
+        Instant now = Instant.now();
+
         validateGroupMembership(context, request.subjectType(), request.ownerUserId());
 
-        Instant now = Instant.now();
-        Event event = new Event(
+        Event event = Event.create(
                 idGenerator.generate("evt_"),
                 context.groupId(),
-                request.title().trim(),
+                request.title(),
                 request.startDate(),
                 request.endDate(),
                 request.startTime(),
                 request.endTime(),
                 request.subjectType(),
-                normalizedOwnerUserId(request.subjectType(), request.ownerUserId()),
+                request.ownerUserId(),
                 request.note(),
                 context.userId(),
-                context.userId(),
-                now,
-                now,
-                null
+                now
         );
 
         Event savedEvent = eventRepository.save(event);
@@ -124,35 +113,22 @@ public class EventService {
 
     @Transactional
     public EventResponse updateEvent(RequestContext context, String eventId, UpdateEventRequest request) {
+        Instant now = Instant.now();
+
         Event event = eventRepository.findByIdAndGroupIdAndDeletedAtIsNull(eventId, context.groupId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.EVENT_NOT_FOUND));
 
-        String title = request.title() != null ? request.title().trim() : event.getTitle();
-        LocalDate startDate = request.startDate() != null ? request.startDate() : event.getStartDate();
-        LocalDate endDate = request.endDate() != null ? request.endDate() : event.getEndDate();
-        LocalTime startTime = request.startTime() != null ? request.startTime() : event.getStartTime();
-        LocalTime endTime = request.endTime() != null ? request.endTime() : event.getEndTime();
-        EventSubjectType subjectType = request.subjectType() != null ? request.subjectType() : event.getSubjectType();
-        String ownerUserId = request.ownerUserId() != null || subjectType == EventSubjectType.SHARED
-                ? request.ownerUserId()
-                : event.getOwnerUserId();
-        String note = request.note() != null ? request.note() : event.getNote();
-
-        validateTitle(title);
-        validateEventRule(startDate, endDate, startTime, endTime, subjectType, ownerUserId);
-        validateGroupMembership(context, subjectType, ownerUserId);
-
         event.update(
-                title,
-                startDate,
-                endDate,
-                startTime,
-                endTime,
-                subjectType,
-                normalizedOwnerUserId(subjectType, ownerUserId),
-                note,
+                request.title(),
+                request.startDate(),
+                request.endDate(),
+                request.startTime(),
+                request.endTime(),
+                request.subjectType(),
+                request.ownerUserId(),
+                request.note(),
                 context.userId(),
-                Instant.now()
+                now
         );
 
         publishScheduleChanged(event, context.userId(), ScheduleChangeType.UPDATED);
@@ -173,27 +149,6 @@ public class EventService {
 
     private void publishScheduleChanged(Event event, String actorUserId, ScheduleChangeType changeType) {
         eventPublisher.publishEvent(notificationService.toScheduleChangedEvent(event, actorUserId, changeType));
-    }
-
-    private void validateEventRule(
-            LocalDate startDate,
-            LocalDate endDate,
-            LocalTime startTime,
-            LocalTime endTime,
-            EventSubjectType subjectType,
-            String ownerUserId
-    ) {
-        if (startDate.isAfter(endDate)) {
-            throw new BusinessException(ErrorCode.EVENT_INVALID_DATE_RANGE, "startDate must be before or equal to endDate");
-        }
-
-        if (startDate.equals(endDate) && startTime.isAfter(endTime)) {
-            throw new BusinessException(ErrorCode.EVENT_INVALID_DATE_RANGE, "startTime must be before or equal to endTime on the same date");
-        }
-
-        if (subjectType == EventSubjectType.PERSONAL && (ownerUserId == null || ownerUserId.isBlank())) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "ownerUserId is required when subjectType is PERSONAL");
-        }
     }
 
     private void validateGroupMembership(RequestContext context, EventSubjectType subjectType, String ownerUserId) {
@@ -223,14 +178,6 @@ public class EventService {
         }
     }
 
-    private String normalizedOwnerUserId(EventSubjectType subjectType, String ownerUserId) {
-        if (subjectType == EventSubjectType.SHARED) {
-            return null;
-        }
-
-        return ownerUserId == null ? null : ownerUserId.trim();
-    }
-
     private boolean matchesOwnerTypes(EventResponse event, List<EventOwnerType> ownerTypes) {
         if (ownerTypes == null || ownerTypes.isEmpty()) {
             return true;
@@ -238,12 +185,6 @@ public class EventService {
 
         Set<EventOwnerType> allowedTypes = Set.copyOf(ownerTypes);
         return allowedTypes.contains(event.ownerType());
-    }
-
-    private void validateTitle(String title) {
-        if (title == null || title.isBlank()) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "title must not be blank");
-        }
     }
 
     private EventResponse toResponse(Event event, String currentUserId) {
