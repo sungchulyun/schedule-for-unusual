@@ -1,5 +1,7 @@
 package com.schedule.api.event.domain;
 
+import com.schedule.api.common.exception.BusinessException;
+import com.schedule.api.common.exception.ErrorCode;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -10,6 +12,9 @@ import jakarta.persistence.Table;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
+
+import static com.schedule.api.common.exception.ErrorCode.EVENT_INVALID_DATE_RANGE;
+import static com.schedule.api.common.exception.ErrorCode.SHIFT_NOT_FOUND;
 
 @Entity
 @Table(
@@ -71,7 +76,7 @@ public class Event {
     protected Event() {
     }
 
-    public Event(
+    private Event(
             String id,
             String groupId,
             String title,
@@ -117,22 +122,133 @@ public class Event {
             String updatedByUserId,
             Instant updatedAt
     ) {
-        this.title = title;
+
+        validateUpdatable();
+
+        String normalizedTitle = normalizeTitle(title);
+        validateEventPeriod(startDate, endDate, startTime, endTime);
+        String normalizedOwnerUserId = normalizeOwnerUserId(subjectType, ownerUserId);
+
+        this.title = normalizedTitle;
         this.startDate = startDate;
         this.endDate = endDate;
         this.startTime = startTime;
         this.endTime = endTime;
         this.subjectType = subjectType;
-        this.ownerUserId = ownerUserId;
+        this.ownerUserId = normalizedOwnerUserId;
         this.note = note;
         this.updatedByUserId = updatedByUserId;
         this.updatedAt = updatedAt;
     }
 
     public void softDelete(String updatedByUserId, Instant deletedAt) {
+        if (isDeleted()) {
+            return;
+        }
+
         this.updatedByUserId = updatedByUserId;
         this.updatedAt = deletedAt;
         this.deletedAt = deletedAt;
+    }
+
+    public static Event create(
+            String id,
+            String groupId,
+            String title,
+            LocalDate startDate,
+            LocalDate endDate,
+            LocalTime startTime,
+            LocalTime endTime,
+            EventSubjectType subjectType,
+            String ownerUserId,
+            String note,
+            String createdByUserId,
+            Instant now
+    ) {
+        String normalizedTitle = normalizeTitle(title);
+        validateEventPeriod(startDate, endDate, startTime, endTime);
+        String normalizedOwnerUserId = normalizeOwnerUserId(subjectType, ownerUserId);
+
+        return new Event(
+                id,
+                groupId,
+                normalizedTitle,
+                startDate,
+                endDate,
+                startTime,
+                endTime,
+                subjectType,
+                normalizedOwnerUserId,
+                note,
+                createdByUserId,
+                createdByUserId,
+                now,
+                now,
+                null
+        );
+    }
+
+    private void validateUpdatable(){
+        if(isDeleted()){
+            throw new BusinessException(SHIFT_NOT_FOUND);
+        }
+    }
+
+    public boolean isDeleted() {
+        return deletedAt != null;
+    }
+
+    private static String normalizeTitle(String title) {
+        if (title == null || title.isBlank()) {
+            throw new BusinessException(ErrorCode.INVALID_EVENT_TITLE);
+        }
+
+        return title.trim();
+    }
+
+    private static void validateEventPeriod(
+            LocalDate startDate,
+            LocalDate endDate,
+            LocalTime startTime,
+            LocalTime endTime
+    ) {
+        if(startDate.isAfter(endDate)) {
+            throw new BusinessException(EVENT_INVALID_DATE_RANGE);
+        }
+        if(startDate.equals(endDate) && !startTime.isBefore(endTime)) {
+            throw new BusinessException(EVENT_INVALID_DATE_RANGE);
+        }
+    }
+
+    private static String normalizeOwnerUserId(
+            EventSubjectType subjectType,
+            String ownerUserId
+    ) {
+        validateSubjectType(subjectType);
+
+        if (subjectType == EventSubjectType.SHARED) {
+            return null;
+        }
+
+        validateOwnerRequiredForPersonal(subjectType, ownerUserId);
+
+        return ownerUserId.trim();
+    }
+
+    private static void validateSubjectType(EventSubjectType subjectType) {
+        if (subjectType == null) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR);
+        }
+    }
+
+    private static void validateOwnerRequiredForPersonal(
+            EventSubjectType subjectType,
+            String ownerUserId
+    ){
+        if (subjectType == EventSubjectType.PERSONAL
+                && (ownerUserId == null || ownerUserId.isBlank())) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR);
+        }
     }
 
     public String getId() {
