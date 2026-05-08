@@ -70,11 +70,12 @@ public class CalendarQueryService {
         GroupMembers members = groupQueryService.loadGroupMembers(context.groupId());
         EventOwnerType effectiveShiftOwnerType = resolveEffectiveShiftOwnerType(context, members.values(), shiftOwnerType);
         String shiftOwnerUserId = resolveShiftOwnerUserId(context, members.values(), effectiveShiftOwnerType);
+        Set<EventOwnerType> allowedOwnerTypes = toAllowedOwnerTypes(ownerTypes);
 
         List<EventResponse> events = eventRepository.findActiveEventsInRange(context.groupId(), startDate, endDate)
                 .stream()
                 .map(event -> toEventResponse(event, context.userId()))
-                .filter(event -> matchesOwnerTypes(event.ownerType(), ownerTypes))
+                .filter(event -> matchesOwnerTypes(event.ownerType(), allowedOwnerTypes))
                 .toList();
 
         List<ShiftResponse> shifts = includeShifts
@@ -107,10 +108,11 @@ public class CalendarQueryService {
         GroupMembers members = groupQueryService.loadGroupMembers(context.groupId());
         EventOwnerType effectiveShiftOwnerType = resolveEffectiveShiftOwnerType(context, members.values(), shiftOwnerType);
         String shiftOwnerUserId = resolveShiftOwnerUserId(context, members.values(), effectiveShiftOwnerType);
+        Set<EventOwnerType> allowedOwnerTypes = toAllowedOwnerTypes(ownerTypes);
         List<EventResponse> events = eventRepository.findActiveEventsInRange(context.groupId(), date, date)
                 .stream()
                 .map(event -> toEventResponse(event, context.userId()))
-                .filter(event -> matchesOwnerTypes(event.ownerType(), ownerTypes))
+                .filter(event -> matchesOwnerTypes(event.ownerType(), allowedOwnerTypes))
                 .sorted(Comparator.comparing(EventResponse::startDate)
                         .thenComparing(EventResponse::endDate)
                         .thenComparing(EventResponse::createdAt))
@@ -200,6 +202,7 @@ public class CalendarQueryService {
     ) {
         Map<LocalDate, List<ShiftResponse>> shiftsByDate = shifts.stream()
                 .collect(Collectors.groupingBy(ShiftResponse::date));
+        Map<LocalDate, List<CalendarDayEventResponse>> eventsByDate = buildEventsByDate(yearMonth, events);
 
         List<CalendarDaySummaryResponse> days = new ArrayList<>();
         for (int day = 1; day <= yearMonth.lengthOfMonth(); day++) {
@@ -214,21 +217,7 @@ public class CalendarQueryService {
                     ))
                     .toList();
             CalendarDayShiftResponse shift = dayShifts.isEmpty() ? null : dayShifts.get(0);
-            List<CalendarDayEventResponse> dayEvents = events.stream()
-                    .filter(event -> !event.startDate().isAfter(date) && !event.endDate().isBefore(date))
-                    .map(event -> new CalendarDayEventResponse(
-                            event.id(),
-                            event.title(),
-                            event.subjectType(),
-                            event.ownerUserId(),
-                            event.ownerType(),
-                            event.startDate(),
-                            event.endDate(),
-                            event.startTime(),
-                            event.endTime(),
-                            !event.startDate().equals(event.endDate())
-                    ))
-                    .toList();
+            List<CalendarDayEventResponse> dayEvents = eventsByDate.getOrDefault(date, List.of());
 
             days.add(new CalendarDaySummaryResponse(
                     date,
@@ -238,6 +227,38 @@ public class CalendarQueryService {
             ));
         }
         return days;
+    }
+
+    private Map<LocalDate, List<CalendarDayEventResponse>> buildEventsByDate(
+            YearMonth yearMonth,
+            List<EventResponse> events
+    ) {
+        LocalDate monthStart = yearMonth.atDay(1);
+        LocalDate monthEnd = yearMonth.atEndOfMonth();
+        Map<LocalDate, List<CalendarDayEventResponse>> eventsByDate = new java.util.HashMap<>();
+
+        for (EventResponse event : events) {
+            LocalDate startDate = event.startDate().isBefore(monthStart) ? monthStart : event.startDate();
+            LocalDate endDate = event.endDate().isAfter(monthEnd) ? monthEnd : event.endDate();
+            CalendarDayEventResponse dayEvent = new CalendarDayEventResponse(
+                    event.id(),
+                    event.title(),
+                    event.subjectType(),
+                    event.ownerUserId(),
+                    event.ownerType(),
+                    event.startDate(),
+                    event.endDate(),
+                    event.startTime(),
+                    event.endTime(),
+                    !event.startDate().equals(event.endDate())
+            );
+
+            for (LocalDate date = startDate; !date.isAfter(endDate); date = date.plusDays(1)) {
+                eventsByDate.computeIfAbsent(date, ignored -> new ArrayList<>()).add(dayEvent);
+            }
+        }
+
+        return eventsByDate;
     }
 
     private Comparator<ShiftResponse> shiftComparator(String currentUserId) {
@@ -325,13 +346,20 @@ public class CalendarQueryService {
         }
     }
 
-    private boolean matchesOwnerTypes(EventOwnerType ownerType, List<EventOwnerType> ownerTypes) {
+    private boolean matchesOwnerTypes(EventOwnerType ownerType, Set<EventOwnerType> ownerTypes) {
         if (ownerTypes == null || ownerTypes.isEmpty()) {
             return true;
         }
 
-        Set<EventOwnerType> allowedTypes = Set.copyOf(ownerTypes);
-        return allowedTypes.contains(ownerType);
+        return ownerTypes.contains(ownerType);
+    }
+
+    private Set<EventOwnerType> toAllowedOwnerTypes(List<EventOwnerType> ownerTypes) {
+        if (ownerTypes == null || ownerTypes.isEmpty()) {
+            return Set.of();
+        }
+
+        return Set.copyOf(ownerTypes);
     }
 
     private List<String> toOwnerTypeNames(List<EventOwnerType> ownerTypes) {
