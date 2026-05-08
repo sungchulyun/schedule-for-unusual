@@ -178,15 +178,17 @@ class AuthControllerIntegrationTest {
                                 }
                                 """))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error.code").value("VALIDATION_ERROR"));
+                .andExpect(jsonPath("$.error.code").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.error.message").value("accessToken: 액세스 토큰을 입력해야 합니다."));
     }
 
     @Test
     void rejectsUnsupportedAppRedirectUri() throws Exception {
         mockMvc.perform(get("/api/v1/auth/kakao/login")
-                        .param("appRedirectUri", "https://malicious.example/callback"))
+                .param("appRedirectUri", "https://malicious.example/callback"))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error.code").value("VALIDATION_ERROR"));
+                .andExpect(jsonPath("$.error.code").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.error.message").value("지원하지 않는 앱 리다이렉트 URI입니다."));
     }
 
     @Test

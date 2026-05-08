@@ -286,7 +286,7 @@ class CalendarControllerIntegrationTest {
                         .param("month", "4"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error.code").value("VALIDATION_ERROR"))
-                .andExpect(jsonPath("$.error.message").value("year must be between 2000 and 2100"));
+                .andExpect(jsonPath("$.error.message").value("year는 2000에서 2100 사이여야 합니다."));
     }
 
     @Test

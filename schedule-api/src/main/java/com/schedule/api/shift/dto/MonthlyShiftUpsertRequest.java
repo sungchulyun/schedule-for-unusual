@@ -5,6 +5,6 @@ import jakarta.validation.constraints.NotNull;
 import java.util.List;
 
 public record MonthlyShiftUpsertRequest(
-        @NotNull @Valid List<MonthlyShiftItemRequest> items
+        @NotNull(message = "근무 목록을 입력해야 합니다.") @Valid List<MonthlyShiftItemRequest> items
 ) {
 }

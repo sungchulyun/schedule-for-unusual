@@ -1,5 +1,8 @@
 package com.schedule.api.auth.service;
 
+
+import com.schedule.api.common.exception.CommonErrorCode;
+import com.schedule.api.auth.exception.AuthErrorCode;
 import com.schedule.api.auth.client.KakaoOAuthClient;
 import com.schedule.api.auth.client.KakaoUserProfile;
 import com.schedule.api.auth.config.AuthProperties;
@@ -17,7 +20,6 @@ import com.schedule.api.auth.repository.RefreshTokenRepository;
 import com.schedule.api.auth.security.AuthenticatedUser;
 import com.schedule.api.auth.security.JwtTokenProvider;
 import com.schedule.api.common.exception.BusinessException;
-import com.schedule.api.common.exception.ErrorCode;
 import com.schedule.api.common.util.IdGenerator;
 import java.time.Instant;
 import java.util.Map;
@@ -74,12 +76,12 @@ public class AuthService {
     @Transactional
     public AuthResultResponse exchangeMobileLogin(String loginCode) {
         if (loginCode == null || loginCode.isBlank()) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "Login code is required");
+            throw new BusinessException(CommonErrorCode.VALIDATION_ERROR, "로그인 코드가 필요합니다.");
         }
 
         PendingMobileLogin pendingMobileLogin = pendingMobileLogins.remove(loginCode.trim());
         if (pendingMobileLogin == null || pendingMobileLogin.expiresAt().isBefore(Instant.now())) {
-            throw new BusinessException(ErrorCode.AUTH_INVALID_TOKEN, "Login code is invalid or expired");
+            throw new BusinessException(AuthErrorCode.AUTH_INVALID_TOKEN, "로그인 코드가 유효하지 않거나 만료되었습니다.");
         }
 
         return pendingMobileLogin.authResult();
@@ -92,7 +94,7 @@ public class AuthService {
 
         PendingAppLogin pendingAppLogin = pendingAppLogins.remove(state.trim());
         if (pendingAppLogin == null || pendingAppLogin.expiresAt().isBefore(Instant.now())) {
-            throw new BusinessException(ErrorCode.AUTH_INVALID_TOKEN, "OAuth state is invalid or expired");
+            throw new BusinessException(AuthErrorCode.AUTH_INVALID_TOKEN, "OAuth state가 유효하지 않거나 만료되었습니다.");
         }
 
         return pendingAppLogin.appRedirectUri();
@@ -112,7 +114,7 @@ public class AuthService {
         String validatedRedirectUri = validateAppRedirectUri(appRedirectUri);
 
         UriComponentsBuilder builder = UriComponentsBuilder.fromUriString(validatedRedirectUri)
-                .queryParam("errorCode", ErrorCode.AUTH_KAKAO_LOGIN_FAILED.name())
+                .queryParam("errorCode", AuthErrorCode.AUTH_KAKAO_LOGIN_FAILED.getCode())
                 .queryParam("error", error);
 
         if (errorDescription != null && !errorDescription.isBlank()) {
@@ -168,26 +170,26 @@ public class AuthService {
         try {
             claims = jwtTokenProvider.parseRefreshToken(refreshToken);
         } catch (io.jsonwebtoken.ExpiredJwtException exception) {
-            throw new BusinessException(ErrorCode.AUTH_TOKEN_EXPIRED, "Refresh token expired");
+            throw new BusinessException(AuthErrorCode.AUTH_TOKEN_EXPIRED, "리프레시 토큰이 만료되었습니다.");
         } catch (io.jsonwebtoken.JwtException | IllegalArgumentException exception) {
-            throw new BusinessException(ErrorCode.AUTH_INVALID_TOKEN, "Invalid refresh token");
+            throw new BusinessException(AuthErrorCode.AUTH_INVALID_TOKEN, "유효하지 않은 리프레시 토큰입니다.");
         }
 
         RefreshToken savedToken = refreshTokenRepository.findByTokenKey(claims.tokenKey())
-                .orElseThrow(() -> new BusinessException(ErrorCode.AUTH_INVALID_TOKEN, "Refresh token not found"));
+                .orElseThrow(() -> new BusinessException(AuthErrorCode.AUTH_INVALID_TOKEN, "리프레시 토큰을 찾을 수 없습니다."));
 
         if (savedToken.getRevokedAt() != null) {
-            throw new BusinessException(ErrorCode.AUTH_REFRESH_TOKEN_REVOKED, "Refresh token revoked");
+            throw new BusinessException(AuthErrorCode.AUTH_REFRESH_TOKEN_REVOKED, "리프레시 토큰이 무효화되었습니다.");
         }
 
         if (savedToken.getExpiresAt().isBefore(Instant.now())) {
-            throw new BusinessException(ErrorCode.AUTH_TOKEN_EXPIRED, "Refresh token expired");
+            throw new BusinessException(AuthErrorCode.AUTH_TOKEN_EXPIRED, "리프레시 토큰이 만료되었습니다.");
         }
 
         AppUser user = appUserRepository.findById(savedToken.getUserId())
-                .orElseThrow(() -> new BusinessException(ErrorCode.AUTH_UNAUTHORIZED, "User not found"));
+                .orElseThrow(() -> new BusinessException(AuthErrorCode.AUTH_UNAUTHORIZED, "사용자를 찾을 수 없습니다."));
         if (user.getStatus() != UserStatus.ACTIVE) {
-            throw new BusinessException(ErrorCode.AUTH_UNAUTHORIZED, "User is not active");
+            throw new BusinessException(AuthErrorCode.AUTH_UNAUTHORIZED, "활성 상태의 사용자가 아닙니다.");
         }
 
         savedToken.revoke(Instant.now());
@@ -201,11 +203,11 @@ public class AuthService {
         try {
             claims = jwtTokenProvider.parseRefreshToken(refreshToken);
         } catch (Exception exception) {
-            throw new BusinessException(ErrorCode.AUTH_INVALID_TOKEN, "Invalid refresh token");
+            throw new BusinessException(AuthErrorCode.AUTH_INVALID_TOKEN, "유효하지 않은 리프레시 토큰입니다.");
         }
 
         RefreshToken savedToken = refreshTokenRepository.findByTokenKey(claims.tokenKey())
-                .orElseThrow(() -> new BusinessException(ErrorCode.AUTH_INVALID_TOKEN, "Refresh token not found"));
+                .orElseThrow(() -> new BusinessException(AuthErrorCode.AUTH_INVALID_TOKEN, "리프레시 토큰을 찾을 수 없습니다."));
         savedToken.revoke(Instant.now());
 
         return new LogoutResponse(true);
@@ -213,14 +215,14 @@ public class AuthService {
 
     public UserProfileResponse getMyProfile(AuthenticatedUser authenticatedUser) {
         AppUser user = appUserRepository.findById(authenticatedUser.userId())
-                .orElseThrow(() -> new BusinessException(ErrorCode.AUTH_UNAUTHORIZED, "User not found"));
+                .orElseThrow(() -> new BusinessException(AuthErrorCode.AUTH_UNAUTHORIZED, "사용자를 찾을 수 없습니다."));
         return toProfile(user);
     }
 
     @Transactional
     public UserProfileResponse updateMySettings(AuthenticatedUser authenticatedUser, UpdateUserSettingsRequest request) {
         AppUser user = appUserRepository.findById(authenticatedUser.userId())
-                .orElseThrow(() -> new BusinessException(ErrorCode.AUTH_UNAUTHORIZED, "User not found"));
+                .orElseThrow(() -> new BusinessException(AuthErrorCode.AUTH_UNAUTHORIZED, "사용자를 찾을 수 없습니다."));
         user.updateDefaultShiftOwnerType(request.defaultShiftOwnerType(), Instant.now());
         return toProfile(user);
     }
@@ -267,12 +269,12 @@ public class AuthService {
 
     private String validateAppRedirectUri(String appRedirectUri) {
         if (appRedirectUri == null || appRedirectUri.isBlank()) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "App redirect URI is required");
+            throw new BusinessException(CommonErrorCode.VALIDATION_ERROR, "앱 리다이렉트 URI가 필요합니다.");
         }
 
         String normalized = appRedirectUri.trim();
         if (!ALLOWED_APP_REDIRECT_PREFIX.equals(normalized)) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "Unsupported app redirect URI");
+            throw new BusinessException(CommonErrorCode.VALIDATION_ERROR, "지원하지 않는 앱 리다이렉트 URI입니다.");
         }
         return normalized;
     }

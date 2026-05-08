@@ -10,7 +10,7 @@ import jakarta.persistence.Table;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 
-import static com.schedule.api.common.exception.ErrorCode.*;
+import static com.schedule.api.group.exception.GroupErrorCode.*;
 
 @Entity
 @Table(name = "group_invites")

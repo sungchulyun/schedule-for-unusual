@@ -1,7 +1,9 @@
 package com.schedule.api.event.domain;
 
+
+import com.schedule.api.common.exception.CommonErrorCode;
 import com.schedule.api.common.exception.BusinessException;
-import com.schedule.api.common.exception.ErrorCode;
+import com.schedule.api.event.exception.EventErrorCode;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -13,8 +15,8 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
 
-import static com.schedule.api.common.exception.ErrorCode.EVENT_INVALID_DATE_RANGE;
-import static com.schedule.api.common.exception.ErrorCode.SHIFT_NOT_FOUND;
+import static com.schedule.api.event.exception.EventErrorCode.EVENT_INVALID_DATE_RANGE;
+import static com.schedule.api.event.exception.EventErrorCode.EVENT_NOT_FOUND;
 
 @Entity
 @Table(
@@ -190,7 +192,7 @@ public class Event {
 
     private void validateUpdatable(){
         if(isDeleted()){
-            throw new BusinessException(SHIFT_NOT_FOUND);
+            throw new BusinessException(EVENT_NOT_FOUND);
         }
     }
 
@@ -200,7 +202,7 @@ public class Event {
 
     private static String normalizeTitle(String title) {
         if (title == null || title.isBlank()) {
-            throw new BusinessException(ErrorCode.INVALID_EVENT_TITLE);
+            throw new BusinessException(EventErrorCode.INVALID_EVENT_TITLE);
         }
 
         return title.trim();
@@ -212,6 +214,10 @@ public class Event {
             LocalTime startTime,
             LocalTime endTime
     ) {
+        if (startDate == null || endDate == null || startTime == null || endTime == null) {
+            throw new BusinessException(CommonErrorCode.VALIDATION_ERROR);
+        }
+
         if(startDate.isAfter(endDate)) {
             throw new BusinessException(EVENT_INVALID_DATE_RANGE);
         }
@@ -237,7 +243,7 @@ public class Event {
 
     private static void validateSubjectType(EventSubjectType subjectType) {
         if (subjectType == null) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR);
+            throw new BusinessException(CommonErrorCode.VALIDATION_ERROR);
         }
     }
 
@@ -247,7 +253,7 @@ public class Event {
     ){
         if (subjectType == EventSubjectType.PERSONAL
                 && (ownerUserId == null || ownerUserId.isBlank())) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR);
+            throw new BusinessException(CommonErrorCode.VALIDATION_ERROR);
         }
     }
 

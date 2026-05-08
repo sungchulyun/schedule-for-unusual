@@ -1,5 +1,8 @@
 package com.schedule.api.calendar.service;
 
+
+import com.schedule.api.common.exception.CommonErrorCode;
+import com.schedule.api.auth.exception.AuthErrorCode;
 import com.schedule.api.auth.domain.AppUser;
 import com.schedule.api.calendar.dto.CalendarDateResponse;
 import com.schedule.api.calendar.dto.CalendarDayEventResponse;
@@ -10,7 +13,6 @@ import com.schedule.api.calendar.dto.CalendarMetaResponse;
 import com.schedule.api.calendar.dto.CalendarMonthResponse;
 import com.schedule.api.common.context.RequestContext;
 import com.schedule.api.common.exception.BusinessException;
-import com.schedule.api.common.exception.ErrorCode;
 import com.schedule.api.common.util.YearMonthValidator;
 import com.schedule.api.event.domain.Event;
 import com.schedule.api.event.domain.EventOwnerType;
@@ -301,7 +303,7 @@ public class CalendarQueryService {
         AppUser currentUser = members.stream()
                 .filter(member -> member.getId().equals(context.userId()))
                 .findFirst()
-                .orElseThrow(() -> new BusinessException(ErrorCode.AUTH_UNAUTHORIZED, "User not found"));
+                .orElseThrow(() -> new BusinessException(AuthErrorCode.AUTH_UNAUTHORIZED, "사용자를 찾을 수 없습니다."));
         EventOwnerType defaultShiftOwnerType = EventOwnerType.valueOf(currentUser.getDefaultShiftOwnerType().name());
         if (defaultShiftOwnerType == EventOwnerType.PARTNER && !hasPartner(context, members)) {
             return EventOwnerType.ME;
@@ -319,7 +321,7 @@ public class CalendarQueryService {
             return;
         }
         if (shiftOwnerType == EventOwnerType.US) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "shiftOwnerType must be ME or PARTNER");
+            throw new BusinessException(CommonErrorCode.VALIDATION_ERROR, "shiftOwnerType은 ME 또는 PARTNER여야 합니다.");
         }
     }
 

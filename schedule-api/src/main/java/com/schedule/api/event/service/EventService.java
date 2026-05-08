@@ -1,10 +1,12 @@
 package com.schedule.api.event.service;
 
+
+import com.schedule.api.group.exception.GroupErrorCode;
+import com.schedule.api.event.exception.EventErrorCode;
 import com.schedule.api.auth.domain.AppUser;
 import com.schedule.api.auth.repository.AppUserRepository;
 import com.schedule.api.common.context.RequestContext;
 import com.schedule.api.common.exception.BusinessException;
-import com.schedule.api.common.exception.ErrorCode;
 import com.schedule.api.common.util.IdGenerator;
 import com.schedule.api.common.util.YearMonthValidator;
 import com.schedule.api.event.dto.CreateEventRequest;
@@ -19,6 +21,7 @@ import com.schedule.api.event.domain.EventSubjectType;
 import com.schedule.api.event.repository.EventRepository;
 import com.schedule.api.notification.event.ScheduleChangeType;
 import com.schedule.api.notification.service.NotificationService;
+import jakarta.validation.ValidationException;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -116,17 +119,23 @@ public class EventService {
         Instant now = Instant.now();
 
         Event event = eventRepository.findByIdAndGroupIdAndDeletedAtIsNull(eventId, context.groupId())
-                .orElseThrow(() -> new BusinessException(ErrorCode.EVENT_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(EventErrorCode.EVENT_NOT_FOUND));
+
+        validateUpdateRequest(request);
+
+        EventSubjectType subjectType = request.subjectType() != null ? request.subjectType() : event.getSubjectType();
+        String ownerUserId = resolveOwnerUserIdForUpdate(event, request, subjectType);
+        validateGroupMembership(context, subjectType, ownerUserId);
 
         event.update(
-                request.title(),
-                request.startDate(),
-                request.endDate(),
-                request.startTime(),
-                request.endTime(),
-                request.subjectType(),
-                request.ownerUserId(),
-                request.note(),
+                request.title() != null ? request.title() : event.getTitle(),
+                request.startDate() != null ? request.startDate() : event.getStartDate(),
+                request.endDate() != null ? request.endDate() : event.getEndDate(),
+                request.startTime() != null ? request.startTime() : event.getStartTime(),
+                request.endTime() != null ? request.endTime() : event.getEndTime(),
+                subjectType,
+                ownerUserId,
+                request.note() != null ? request.note() : event.getNote(),
                 context.userId(),
                 now
         );
@@ -138,13 +147,35 @@ public class EventService {
     @Transactional
     public DeleteEventResponse deleteEvent(RequestContext context, String eventId) {
         Event event = eventRepository.findByIdAndGroupIdAndDeletedAtIsNull(eventId, context.groupId())
-                .orElseThrow(() -> new BusinessException(ErrorCode.EVENT_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(EventErrorCode.EVENT_NOT_FOUND));
 
         Instant deletedAt = Instant.now();
         event.softDelete(context.userId(), deletedAt);
 
         publishScheduleChanged(event, context.userId(), ScheduleChangeType.DELETED);
         return new DeleteEventResponse(event.getId(), true, deletedAt);
+    }
+
+    private void validateUpdateRequest(UpdateEventRequest request) {
+        if (request.title() != null && request.title().isBlank()) {
+            throw new ValidationException("제목을 입력해야 합니다.");
+        }
+    }
+
+    private String resolveOwnerUserIdForUpdate(
+            Event event,
+            UpdateEventRequest request,
+            EventSubjectType subjectType
+    ) {
+        if (subjectType == EventSubjectType.SHARED) {
+            return null;
+        }
+
+        if (request.ownerUserId() != null) {
+            return request.ownerUserId();
+        }
+
+        return event.getOwnerUserId();
     }
 
     private void publishScheduleChanged(Event event, String actorUserId, ScheduleChangeType changeType) {
@@ -160,7 +191,7 @@ public class EventService {
         boolean currentUserInGroup = members.stream()
                 .anyMatch(member -> member.getId().equals(context.userId()));
         if (!currentUserInGroup) {
-            throw new BusinessException(ErrorCode.GROUP_ACCESS_DENIED);
+            throw new BusinessException(GroupErrorCode.GROUP_ACCESS_DENIED);
         }
 
         if (subjectType != EventSubjectType.PERSONAL) {
@@ -172,8 +203,8 @@ public class EventService {
                 .anyMatch(member -> member.getId().equals(normalizedOwnerUserId));
         if (!ownerInGroup) {
             throw new BusinessException(
-                    ErrorCode.GROUP_ACCESS_DENIED,
-                    "ownerUserId must be a member of the current group"
+                    GroupErrorCode.GROUP_ACCESS_DENIED,
+                    "ownerUserId는 현재 그룹의 멤버여야 합니다."
             );
         }
     }

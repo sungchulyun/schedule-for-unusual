@@ -192,6 +192,30 @@ class GroupControllerIntegrationTest {
                                 """))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error.code").value("VALIDATION_ERROR"))
-                .andExpect(jsonPath("$.error.message").value("channel must be KAKAO_TALK_SHARE"));
+                .andExpect(jsonPath("$.error.message").value("channel은 KAKAO_TALK_SHARE여야 합니다."));
+    }
+
+    @Test
+    void rejectsAcceptInviteWithoutTokenOrCode() throws Exception {
+        appUserRepository.save(new AppUser(
+                "usr_invite_missing",
+                OAuthProvider.KAKAO,
+                "kakao-invite-missing",
+                "invite-missing",
+                null,
+                "grp_invite_missing",
+                UserStatus.ACTIVE,
+                Instant.now(),
+                Instant.now()
+        ));
+
+        mockMvc.perform(post("/api/v1/groups/invites/accept")
+                        .header("X-Group-Id", "grp_invite_missing")
+                        .header("X-User-Id", "usr_invite_missing")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.error.message").value("inviteToken 또는 inviteCode가 필요합니다."));
     }
 }

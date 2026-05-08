@@ -1,8 +1,9 @@
 package com.schedule.api.auth.security;
 
+
+import com.schedule.api.auth.exception.AuthErrorCode;
 import com.schedule.api.auth.config.AuthProperties;
 import com.schedule.api.common.exception.BusinessException;
-import com.schedule.api.common.exception.ErrorCode;
 import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.JwtException;
 import jakarta.servlet.FilterChain;
@@ -54,9 +55,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
             SecurityContextHolder.getContext().setAuthentication(authentication);
         } catch (ExpiredJwtException exception) {
-            throw new BusinessException(ErrorCode.AUTH_TOKEN_EXPIRED, "Access token expired");
+            throw new BusinessException(AuthErrorCode.AUTH_TOKEN_EXPIRED, "액세스 토큰이 만료되었습니다.");
         } catch (JwtException | IllegalArgumentException exception) {
-            throw new BusinessException(ErrorCode.AUTH_INVALID_TOKEN, "Invalid access token");
+            throw new BusinessException(AuthErrorCode.AUTH_INVALID_TOKEN, "유효하지 않은 액세스 토큰입니다.");
         }
     }
 

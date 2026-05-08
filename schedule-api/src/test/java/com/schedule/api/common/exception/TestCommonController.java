@@ -1,5 +1,7 @@
 package com.schedule.api.common.exception;
 
+
+import com.schedule.api.group.exception.GroupErrorCode;
 import com.schedule.api.common.response.ApiResponse;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -24,7 +26,7 @@ class TestCommonController {
 
     @GetMapping("/business")
     ApiResponse<Void> business() {
-        throw new BusinessException(ErrorCode.GROUP_NOT_FOUND);
+        throw new BusinessException(GroupErrorCode.GROUP_NOT_FOUND);
     }
 
     @PostMapping("/validation")
@@ -33,8 +35,13 @@ class TestCommonController {
     }
 
     @GetMapping("/constraint")
-    ApiResponse<Map<String, String>> constraint(@RequestParam @NotBlank String name) {
+    ApiResponse<Map<String, String>> constraint(@RequestParam @NotBlank(message = "이름을 입력해야 합니다.") String name) {
         return ApiResponse.success(Map.of("name", name));
+    }
+
+    @GetMapping("/type-mismatch")
+    ApiResponse<Map<String, Integer>> typeMismatch(@RequestParam Integer count) {
+        return ApiResponse.success(Map.of("count", count));
     }
 
     @GetMapping("/unexpected")
@@ -43,7 +50,7 @@ class TestCommonController {
     }
 
     record TestRequest(
-            @NotBlank String name
+            @NotBlank(message = "이름을 입력해야 합니다.") String name
     ) {
     }
 }

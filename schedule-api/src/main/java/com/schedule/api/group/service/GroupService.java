@@ -1,11 +1,14 @@
 package com.schedule.api.group.service;
 
+
+import com.schedule.api.common.exception.CommonErrorCode;
+import com.schedule.api.auth.exception.AuthErrorCode;
+import com.schedule.api.group.exception.GroupErrorCode;
 import com.schedule.api.auth.domain.AppUser;
 import com.schedule.api.auth.repository.AppUserRepository;
 import com.schedule.api.auth.security.AuthenticatedUser;
 import com.schedule.api.auth.service.AuthService;
 import com.schedule.api.common.exception.BusinessException;
-import com.schedule.api.common.exception.ErrorCode;
 import com.schedule.api.common.util.IdGenerator;
 import com.schedule.api.group.domain.GroupInvite;
 import com.schedule.api.group.domain.GroupMembers;
@@ -136,7 +139,7 @@ public class GroupService {
 
         if(!invite.isActive(now)){
             invite.expireIfExpired(now);
-            throw new BusinessException(ErrorCode.GROUP_INVITE_EXPIRED);
+            throw new BusinessException(GroupErrorCode.GROUP_INVITE_EXPIRED);
         }
 
         AppUser inviter = requireUser(invite.getCreatedByUserId());
@@ -185,7 +188,7 @@ public class GroupService {
 
     private AppUser requireUser(String userId) {
         return appUserRepository.findById(userId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.AUTH_UNAUTHORIZED, "User not found"));
+                .orElseThrow(() -> new BusinessException(AuthErrorCode.AUTH_UNAUTHORIZED, "사용자를 찾을 수 없습니다."));
     }
 
     private String generateInviteCode() {
@@ -198,19 +201,19 @@ public class GroupService {
         }
         if (inviteCode != null && !inviteCode.isBlank()) {
             return groupInviteRepository.findByCode(inviteCode)
-                    .orElseThrow(() -> new BusinessException(ErrorCode.GROUP_INVITE_NOT_FOUND));
+                    .orElseThrow(() -> new BusinessException(GroupErrorCode.GROUP_INVITE_NOT_FOUND));
         }
-        throw new BusinessException(ErrorCode.VALIDATION_ERROR, "inviteToken or inviteCode is required");
+        throw new BusinessException(CommonErrorCode.VALIDATION_ERROR, "inviteToken 또는 inviteCode가 필요합니다.");
     }
 
     private GroupInvite requireInviteByToken(String inviteToken) {
         return groupInviteRepository.findByInviteToken(inviteToken)
-                .orElseThrow(() -> new BusinessException(ErrorCode.GROUP_INVITE_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(GroupErrorCode.GROUP_INVITE_NOT_FOUND));
     }
 
     private void validateInviteChannel(String channel) {
         if (!SUPPORTED_INVITE_CHANNEL.equals(channel)) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "channel must be " + SUPPORTED_INVITE_CHANNEL);
+            throw new BusinessException(CommonErrorCode.VALIDATION_ERROR, "channel은 " + SUPPORTED_INVITE_CHANNEL + "여야 합니다.");
         }
     }
 

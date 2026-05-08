@@ -54,8 +54,29 @@ class GlobalExceptionHandlerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success").value(false))
                 .andExpect(jsonPath("$.error.code").value("VALIDATION_ERROR"))
-                .andExpect(jsonPath("$.error.message").value("name: must not be blank"))
+                .andExpect(jsonPath("$.error.message").value("name: 이름을 입력해야 합니다."))
                 .andExpect(jsonPath("$.meta.timestamp").exists());
+    }
+
+    @Test
+    void handlesMalformedRequestBody() throws Exception {
+        mockMvc.perform(post("/test/common/validation")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error.code").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.error.message").value("요청 본문을 읽을 수 없습니다."));
+    }
+
+    @Test
+    void handlesTypeMismatchException() throws Exception {
+        mockMvc.perform(get("/test/common/type-mismatch")
+                        .param("count", "abc"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error.code").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.error.message").value("count: 요청 타입이 올바르지 않습니다."));
     }
 
     @Test

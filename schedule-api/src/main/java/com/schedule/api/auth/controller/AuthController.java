@@ -52,7 +52,7 @@ public class AuthController {
         }
 
         if (code == null || code.isBlank()) {
-            throw new jakarta.validation.ValidationException("Authorization code is required");
+            throw new jakarta.validation.ValidationException("인가 코드가 필요합니다.");
         }
 
         AuthResultResponse result = authService.authenticateWithKakao(code);

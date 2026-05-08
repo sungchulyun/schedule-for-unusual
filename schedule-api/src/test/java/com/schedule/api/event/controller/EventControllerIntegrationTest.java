@@ -181,7 +181,20 @@ class EventControllerIntegrationTest {
                                 """))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error.code").value("VALIDATION_ERROR"))
-                .andExpect(jsonPath("$.error.message").value("title must not be blank"));
+                .andExpect(jsonPath("$.error.message").value("제목을 입력해야 합니다."));
+    }
+
+    @Test
+    void rejectsInvalidOwnerTypeFilter() throws Exception {
+        mockMvc.perform(get("/api/v1/events")
+                        .header("X-Group-Id", "grp_event_filter_validation")
+                        .header("X-User-Id", "usr_me")
+                        .param("year", "2026")
+                        .param("month", "4")
+                        .param("ownerTypes", "MINE"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.error.message").value("ownerTypes는 ME, US, PARTNER만 포함할 수 있습니다."));
     }
 
     @Test

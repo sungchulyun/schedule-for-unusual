@@ -120,7 +120,8 @@ class ShiftControllerIntegrationTest {
                                 }
                 """))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error.code").value("VALIDATION_ERROR"));
+                .andExpect(jsonPath("$.error.code").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.error.message").value("근무 항목에 중복 날짜가 포함될 수 없습니다."));
     }
 
 }

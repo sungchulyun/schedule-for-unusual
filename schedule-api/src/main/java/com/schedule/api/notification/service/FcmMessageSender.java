@@ -104,7 +104,7 @@ public class FcmMessageSender {
                     .build();
             return FirebaseApp.initializeApp(options, APP_NAME);
         } catch (IOException e) {
-            throw new IllegalStateException("Failed to initialize Firebase", e);
+            throw new IllegalStateException("Firebase 초기화에 실패했습니다.", e);
         }
     }
 
@@ -112,7 +112,7 @@ public class FcmMessageSender {
         if (credentialsPath.startsWith(ResourceLoader.CLASSPATH_URL_PREFIX)) {
             Resource resource = resourceLoader.getResource(credentialsPath);
             if (!resource.exists()) {
-                throw new IOException("classpath resource not found");
+                throw new IOException("classpath 리소스를 찾을 수 없습니다.");
             }
             return resource.getInputStream();
         }

@@ -1,8 +1,10 @@
 package com.schedule.api.shift.service;
 
+
+import com.schedule.api.common.exception.CommonErrorCode;
+import com.schedule.api.shift.exception.ShiftErrorCode;
 import com.schedule.api.common.context.RequestContext;
 import com.schedule.api.common.exception.BusinessException;
-import com.schedule.api.common.exception.ErrorCode;
 import com.schedule.api.common.util.IdGenerator;
 import com.schedule.api.common.util.YearMonthValidator;
 import com.schedule.api.shift.dto.DeleteShiftResponse;
@@ -130,7 +132,7 @@ public class ShiftService {
     public DeleteShiftResponse deleteShift(RequestContext context, LocalDate date) {
         ShiftSchedule shift = shiftScheduleRepository
                 .findByGroupIdAndOwnerUserIdAndDateAndDeletedAtIsNull(context.groupId(), context.userId(), date)
-                .orElseThrow(() -> new BusinessException(ErrorCode.SHIFT_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(ShiftErrorCode.SHIFT_NOT_FOUND));
 
         Instant deletedAt = Instant.now();
         shift.softDelete(context.userId(), deletedAt);
@@ -139,12 +141,14 @@ public class ShiftService {
     }
 
     private ShiftResponse toResponse(ShiftSchedule shiftSchedule, String currentUserId) {
+        String ownerType = shiftSchedule.resolveOwnerType(currentUserId);
+
         return new ShiftResponse(
                 shiftSchedule.getId(),
                 shiftSchedule.getGroupId(),
                 shiftSchedule.getDate(),
                 shiftSchedule.getOwnerUserId(),
-                resolveOwnerType(shiftSchedule, currentUserId),
+                ownerType,
                 shiftSchedule.getShiftType(),
                 shiftSchedule.getCreatedByUserId(),
                 shiftSchedule.getUpdatedByUserId(),
@@ -154,24 +158,20 @@ public class ShiftService {
         );
     }
 
-    private String resolveOwnerType(ShiftSchedule shiftSchedule, String currentUserId) {
-        return shiftSchedule.getOwnerUserId().equals(currentUserId) ? "ME" : "PARTNER";
-    }
-
     private void validateMonthlyItems(YearMonth yearMonth, List<MonthlyShiftItemRequest> items) {
         Set<LocalDate> seenDates = new HashSet<>();
         for (MonthlyShiftItemRequest item : items) {
             if (!YearMonth.from(item.date()).equals(yearMonth)) {
                 throw new BusinessException(
-                        ErrorCode.VALIDATION_ERROR,
-                        "all items must belong to the requested year and month"
+                        CommonErrorCode.VALIDATION_ERROR,
+                        "모든 근무 항목은 요청한 연월에 포함되어야 합니다."
                 );
             }
 
             if (!seenDates.add(item.date())) {
                 throw new BusinessException(
-                        ErrorCode.VALIDATION_ERROR,
-                        "items must not contain duplicate dates"
+                        CommonErrorCode.VALIDATION_ERROR,
+                        "근무 항목에 중복 날짜가 포함될 수 없습니다."
                 );
             }
         }

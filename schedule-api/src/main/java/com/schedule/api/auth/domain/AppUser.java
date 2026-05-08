@@ -1,6 +1,5 @@
 package com.schedule.api.auth.domain;
 
-import com.schedule.api.common.exception.BusinessException;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -9,8 +8,6 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Index;
 import jakarta.persistence.Table;
 import java.time.Instant;
-
-import static com.schedule.api.common.exception.ErrorCode.GROUP_MEMBER_LIMIT_EXCEEDED;
 
 @Entity
 @Table(
@@ -128,7 +125,7 @@ public class AppUser {
 
     private void validateGroupId(String groupId) {
         if (groupId == null || groupId.isBlank()) {
-            throw new IllegalArgumentException("groupId must not be blank");
+            throw new IllegalArgumentException("groupId는 비어 있을 수 없습니다.");
         }
     }
 

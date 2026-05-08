@@ -4,7 +4,6 @@ import com.schedule.api.auth.domain.AppUser;
 import com.schedule.api.auth.repository.AppUserRepository;
 import com.schedule.api.calendar.dto.CalendarMetaMemberResponse;
 import com.schedule.api.common.exception.BusinessException;
-import com.schedule.api.common.exception.ErrorCode;
 import com.schedule.api.group.domain.GroupMembers;
 import com.schedule.api.group.dto.GroupMemberResponse;
 import com.schedule.api.group.dto.GroupPermissionsResponse;

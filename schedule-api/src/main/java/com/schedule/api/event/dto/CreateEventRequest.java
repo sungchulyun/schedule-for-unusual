@@ -7,12 +7,12 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 
 public record CreateEventRequest(
-        @NotBlank String title,
-        @NotNull LocalDate startDate,
-        @NotNull LocalDate endDate,
-        @NotNull LocalTime startTime,
-        @NotNull LocalTime endTime,
-        @NotNull EventSubjectType subjectType,
+        @NotBlank(message = "제목을 입력해야 합니다.") String title,
+        @NotNull(message = "시작 날짜를 입력해야 합니다.") LocalDate startDate,
+        @NotNull(message = "종료 날짜를 입력해야 합니다.") LocalDate endDate,
+        @NotNull(message = "시작 시간을 입력해야 합니다.") LocalTime startTime,
+        @NotNull(message = "종료 시간을 입력해야 합니다.") LocalTime endTime,
+        @NotNull(message = "일정 유형을 입력해야 합니다.") EventSubjectType subjectType,
         String ownerUserId,
         String note
 ) {

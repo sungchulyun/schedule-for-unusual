@@ -23,7 +23,7 @@ public class GlobalExceptionHandler {
 
         return ResponseEntity
                 .status(errorCode.getHttpStatus())
-                .body(ApiResponse.failure(errorCode.name(), exception.getMessage()));
+                .body(ApiResponse.failure(errorCode.getCode(), exception.getMessage()));
     }
 
     @ExceptionHandler({
@@ -38,8 +38,8 @@ public class GlobalExceptionHandler {
         String message = resolveValidationMessage(exception);
 
         return ResponseEntity
-                .status(ErrorCode.VALIDATION_ERROR.getHttpStatus())
-                .body(ApiResponse.failure(ErrorCode.VALIDATION_ERROR.name(), message));
+                .status(CommonErrorCode.VALIDATION_ERROR.getHttpStatus())
+                .body(ApiResponse.failure(CommonErrorCode.VALIDATION_ERROR.getCode(), message));
     }
 
     @ExceptionHandler(Exception.class)
@@ -47,10 +47,10 @@ public class GlobalExceptionHandler {
         log.error("Unhandled exception occurred", exception);
 
         return ResponseEntity
-                .status(ErrorCode.INTERNAL_SERVER_ERROR.getHttpStatus())
+                .status(CommonErrorCode.INTERNAL_SERVER_ERROR.getHttpStatus())
                 .body(ApiResponse.failure(
-                        ErrorCode.INTERNAL_SERVER_ERROR.name(),
-                        ErrorCode.INTERNAL_SERVER_ERROR.getDefaultMessage()
+                        CommonErrorCode.INTERNAL_SERVER_ERROR.getCode(),
+                        CommonErrorCode.INTERNAL_SERVER_ERROR.getDefaultMessage()
                 ));
     }
 
@@ -90,6 +90,6 @@ public class GlobalExceptionHandler {
             return validationException.getMessage();
         }
 
-        return ErrorCode.VALIDATION_ERROR.getDefaultMessage();
+        return CommonErrorCode.VALIDATION_ERROR.getDefaultMessage();
     }
 }

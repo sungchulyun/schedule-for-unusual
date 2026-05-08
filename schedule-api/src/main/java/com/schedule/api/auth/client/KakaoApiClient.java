@@ -1,8 +1,9 @@
 package com.schedule.api.auth.client;
 
+
+import com.schedule.api.auth.exception.AuthErrorCode;
 import com.schedule.api.auth.config.AuthProperties;
 import com.schedule.api.common.exception.BusinessException;
-import com.schedule.api.common.exception.ErrorCode;
 import java.util.Map;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
@@ -29,7 +30,7 @@ public class KakaoApiClient implements KakaoOAuthClient {
         } catch (BusinessException exception) {
             throw exception;
         } catch (Exception exception) {
-            throw new BusinessException(ErrorCode.AUTH_KAKAO_LOGIN_FAILED, "Kakao login failed");
+            throw new BusinessException(AuthErrorCode.AUTH_KAKAO_LOGIN_FAILED, "카카오 로그인에 실패했습니다.");
         }
     }
 
@@ -40,7 +41,7 @@ public class KakaoApiClient implements KakaoOAuthClient {
         } catch (BusinessException exception) {
             throw exception;
         } catch (Exception exception) {
-            throw new BusinessException(ErrorCode.AUTH_KAKAO_LOGIN_FAILED, "Kakao login failed");
+            throw new BusinessException(AuthErrorCode.AUTH_KAKAO_LOGIN_FAILED, "카카오 로그인에 실패했습니다.");
         }
     }
 
@@ -63,7 +64,7 @@ public class KakaoApiClient implements KakaoOAuthClient {
                 .body(KakaoTokenResponse.class);
 
         if (response == null || response.accessToken() == null || response.accessToken().isBlank()) {
-            throw new BusinessException(ErrorCode.AUTH_KAKAO_LOGIN_FAILED, "Failed to exchange Kakao authorization code");
+            throw new BusinessException(AuthErrorCode.AUTH_KAKAO_LOGIN_FAILED, "카카오 인가 코드 교환에 실패했습니다.");
         }
 
         return response;
@@ -77,7 +78,7 @@ public class KakaoApiClient implements KakaoOAuthClient {
                 .body(KakaoUserResponse.class);
 
         if (userResponse == null || userResponse.id() == null) {
-            throw new BusinessException(ErrorCode.AUTH_KAKAO_LOGIN_FAILED, "Failed to read Kakao user profile");
+            throw new BusinessException(AuthErrorCode.AUTH_KAKAO_LOGIN_FAILED, "카카오 사용자 정보를 읽지 못했습니다.");
         }
 
         String nickname = userResponse.kakaoAccount() != null && userResponse.kakaoAccount().profile() != null

@@ -1,7 +1,8 @@
 package com.schedule.api.event.support;
 
+
+import com.schedule.api.common.exception.CommonErrorCode;
 import com.schedule.api.common.exception.BusinessException;
-import com.schedule.api.common.exception.ErrorCode;
 import com.schedule.api.event.domain.EventOwnerType;
 import java.util.Arrays;
 import java.util.List;
@@ -26,8 +27,8 @@ public final class EventOwnerTypeFilterParser {
                     .toList();
         } catch (IllegalArgumentException exception) {
             throw new BusinessException(
-                    ErrorCode.VALIDATION_ERROR,
-                    "ownerTypes must contain only ME, US, PARTNER"
+                    CommonErrorCode.VALIDATION_ERROR,
+                    "ownerTypes는 ME, US, PARTNER만 포함할 수 있습니다."
             );
         }
     }
