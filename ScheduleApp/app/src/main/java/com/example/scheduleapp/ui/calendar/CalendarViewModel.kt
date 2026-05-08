@@ -6,6 +6,8 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.scheduleapp.data.CalendarRepository
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.LocalTime
@@ -26,43 +28,45 @@ class CalendarViewModel(
 ) : ViewModel() {
     var uiState by mutableStateOf(CalendarRemoteState())
         private set
+    private var loadMonthJob: Job? = null
 
     fun loadMonth(month: YearMonth, shiftOwnerType: ShiftOwnerType, force: Boolean = false) {
         if (
             !force &&
             uiState.loadedMonth == month &&
             uiState.loadedShiftOwnerType == shiftOwnerType &&
-            !uiState.isLoading &&
-            uiState.errorMessage == null
+            (uiState.isLoading || uiState.errorMessage == null)
         ) {
             return
         }
 
-        viewModelScope.launch {
+        loadMonthJob?.cancel()
+        loadMonthJob = viewModelScope.launch {
             uiState = uiState.copy(
                 loadedMonth = month,
                 loadedShiftOwnerType = shiftOwnerType,
                 isLoading = true,
                 errorMessage = null
             )
-            runCatching { repository.getMonth(month, shiftOwnerType) }
-                .onSuccess { data ->
-                    uiState = uiState.copy(
-                        loadedMonth = month,
-                        loadedShiftOwnerType = shiftOwnerType,
-                        events = data.events,
-                        shifts = data.shifts,
-                        isLoading = false
-                    )
-                }
-                .onFailure { throwable ->
-                    uiState = uiState.copy(
-                        loadedMonth = month,
-                        loadedShiftOwnerType = shiftOwnerType,
-                        isLoading = false,
-                        errorMessage = throwable.message ?: "월간 데이터를 불러오지 못했습니다."
-                    )
-                }
+            try {
+                val data = repository.getMonth(month, shiftOwnerType, forceRefresh = force)
+                uiState = uiState.copy(
+                    loadedMonth = month,
+                    loadedShiftOwnerType = shiftOwnerType,
+                    events = data.events,
+                    shifts = data.shifts,
+                    isLoading = false
+                )
+            } catch (throwable: CancellationException) {
+                throw throwable
+            } catch (throwable: Throwable) {
+                uiState = uiState.copy(
+                    loadedMonth = month,
+                    loadedShiftOwnerType = shiftOwnerType,
+                    isLoading = false,
+                    errorMessage = throwable.message ?: "월간 데이터를 불러오지 못했습니다."
+                )
+            }
         }
     }
 

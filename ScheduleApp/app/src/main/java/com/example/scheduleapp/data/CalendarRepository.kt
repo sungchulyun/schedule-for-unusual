@@ -132,10 +132,25 @@ class CalendarRepository(
                 )
             }
         }
+        clearMonthCache()
         return response
     }
 
-    suspend fun getMonth(month: YearMonth, shiftOwnerType: ShiftOwnerType): CalendarMonthData {
+    suspend fun getMonth(
+        month: YearMonth,
+        shiftOwnerType: ShiftOwnerType,
+        forceRefresh: Boolean = false
+    ): CalendarMonthData {
+        val cacheKey = MonthCacheKey(
+            groupId = CalendarApiConfig.groupId,
+            currentUserId = CalendarApiConfig.currentUserId,
+            month = month,
+            shiftOwnerType = shiftOwnerType
+        )
+        if (!forceRefresh) {
+            getCachedMonth(cacheKey)?.let { return it }
+        }
+
         val data = unwrap(
             service.getCalendarMonth(
                 month.year,
@@ -144,7 +159,7 @@ class CalendarRepository(
                 CalendarApiConfig.groupId
             )
         )
-        return data.toDomain()
+        return data.toDomain().also { cacheMonth(cacheKey, it) }
     }
 
     suspend fun refreshSessionContext() {
@@ -163,6 +178,7 @@ class CalendarRepository(
                 partnerUserId = partnerUserId
             )
         )
+        clearMonthCache()
     }
 
     suspend fun updateDefaultShiftOwnerType(shiftOwnerType: ShiftOwnerType): ShiftOwnerType {
@@ -192,6 +208,7 @@ class CalendarRepository(
                 request = request
             )
         )
+        clearMonthCache()
     }
 
     suspend fun updateEvent(
@@ -212,10 +229,12 @@ class CalendarRepository(
                 request = request.toUpdateRequest()
             )
         )
+        clearMonthCache()
     }
 
     suspend fun deleteEvent(eventId: String) {
         unwrap(service.deleteEvent(eventId, CalendarApiConfig.groupId))
+        clearMonthCache()
     }
 
     suspend fun upsertShift(date: LocalDate, shiftType: ShiftType) {
@@ -226,6 +245,7 @@ class CalendarRepository(
                 request = UpsertShiftRequest(shiftType = shiftType.name)
             )
         )
+        clearMonthCache()
     }
 
     suspend fun saveMonthlyShifts(
@@ -250,10 +270,12 @@ class CalendarRepository(
                 request = MonthlyShiftRequest(items)
             )
         )
+        clearMonthCache()
     }
 
     suspend fun deleteShift(date: LocalDate): DeleteShiftResponse {
         return unwrap(service.deleteShift(date.toString(), CalendarApiConfig.groupId))
+            .also { clearMonthCache() }
     }
 
     private suspend fun <T> unwrap(response: Response<ApiEnvelope<T>>): T {
@@ -349,6 +371,7 @@ class CalendarRepository(
                     partnerUserId = partnerUserId
                 )
             )
+            clearMonthCache()
         }
     }
 
@@ -424,6 +447,13 @@ class CalendarRepository(
         val shifts: List<ShiftSchedule>
     )
 
+    private data class MonthCacheKey(
+        val groupId: String?,
+        val currentUserId: String,
+        val month: YearMonth,
+        val shiftOwnerType: ShiftOwnerType
+    )
+
     private class ErrorParser {
         private val moshi = Moshi.Builder()
             .addLast(KotlinJsonAdapterFactory())
@@ -443,7 +473,27 @@ class CalendarRepository(
 
     companion object {
         private val refreshLock = Any()
+        private val monthCacheLock = Any()
+        private val monthCache = mutableMapOf<MonthCacheKey, CalendarMonthData>()
         private val refreshBeforeExpiryMillis = TimeUnit.MINUTES.toMillis(1)
+
+        private fun getCachedMonth(cacheKey: MonthCacheKey): CalendarMonthData? {
+            return synchronized(monthCacheLock) {
+                monthCache[cacheKey]
+            }
+        }
+
+        private fun cacheMonth(cacheKey: MonthCacheKey, data: CalendarMonthData) {
+            synchronized(monthCacheLock) {
+                monthCache[cacheKey] = data
+            }
+        }
+
+        private fun clearMonthCache() {
+            synchronized(monthCacheLock) {
+                monthCache.clear()
+            }
+        }
 
         private fun createService(): CalendarApiService {
             val logger = HttpLoggingInterceptor().apply {

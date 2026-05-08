@@ -256,7 +256,7 @@ class MainActivity : ComponentActivity() {
                                 }
                             },
                             onCalendarDataChanged = {
-                                ScheduleMonthWidgetProvider.requestRefresh(applicationContext)
+                                ScheduleMonthWidgetProvider.requestRefresh(applicationContext, forceNetwork = true)
                             },
                             onLogout = {
                                 lifecycleScope.launch {

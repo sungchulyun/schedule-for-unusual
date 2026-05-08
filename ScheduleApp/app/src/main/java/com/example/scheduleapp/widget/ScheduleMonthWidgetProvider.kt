@@ -26,6 +26,7 @@ import java.time.LocalDate
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import java.util.concurrent.atomic.AtomicBoolean
 
 class ScheduleMonthWidgetProvider : AppWidgetProvider() {
     override fun onUpdate(
@@ -33,49 +34,101 @@ class ScheduleMonthWidgetProvider : AppWidgetProvider() {
         appWidgetManager: AppWidgetManager,
         appWidgetIds: IntArray
     ) {
-        updateAllWidgets(context, appWidgetManager, appWidgetIds)
+        updateAllWidgets(context, appWidgetManager, appWidgetIds, forceNetwork = false)
     }
 
     override fun onReceive(context: Context, intent: Intent) {
-        super.onReceive(context, intent)
         when (intent.action) {
-            ScheduleMonthWidgetContract.ActionRefresh,
+            ScheduleMonthWidgetContract.ActionRefresh -> {
+                refreshRequestedWidgets(context, intent, forceNetwork = true)
+                return
+            }
             Intent.ACTION_DATE_CHANGED,
             Intent.ACTION_TIME_CHANGED,
             Intent.ACTION_TIMEZONE_CHANGED,
-            Intent.ACTION_LOCALE_CHANGED,
-            AppWidgetManager.ACTION_APPWIDGET_UPDATE -> requestRefresh(context)
+            Intent.ACTION_LOCALE_CHANGED -> {
+                requestRefresh(context, forceNetwork = true)
+                return
+            }
+            AppWidgetManager.ACTION_APPWIDGET_UPDATE -> {
+                val appWidgetManager = AppWidgetManager.getInstance(context)
+                val appWidgetIds = intent.getIntArrayExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS)
+                    ?.takeIf { it.isNotEmpty() }
+                    ?: appWidgetManager.getAppWidgetIds(
+                        ComponentName(context, ScheduleMonthWidgetProvider::class.java)
+                    )
+                updateAllWidgets(context, appWidgetManager, appWidgetIds, forceNetwork = false)
+                return
+            }
         }
+        super.onReceive(context, intent)
     }
 
     companion object {
         private const val WIDGET_ROWS = 6
         private const val WIDGET_COLUMNS = 7
+        private const val WIDGET_PAYLOAD_CACHE_MILLIS = 30_000L
+        private val refreshInFlight = AtomicBoolean(false)
+        @Volatile private var cachedPayload: WidgetMonthPayload? = null
+        @Volatile private var cachedPayloadLoadedAtEpochMillis: Long = 0L
 
-        fun requestRefresh(context: Context) {
+        fun requestRefresh(context: Context, forceNetwork: Boolean = false) {
             val appWidgetManager = AppWidgetManager.getInstance(context)
             val componentName = ComponentName(context, ScheduleMonthWidgetProvider::class.java)
             val appWidgetIds = appWidgetManager.getAppWidgetIds(componentName)
-            updateAllWidgets(context, appWidgetManager, appWidgetIds)
+            updateAllWidgets(context, appWidgetManager, appWidgetIds, forceNetwork)
+        }
+
+        private fun refreshRequestedWidgets(context: Context, intent: Intent, forceNetwork: Boolean) {
+            val appWidgetManager = AppWidgetManager.getInstance(context)
+            val appWidgetIds = intent.getIntArrayExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS)
+                ?.takeIf { it.isNotEmpty() }
+                ?: appWidgetManager.getAppWidgetIds(
+                    ComponentName(context, ScheduleMonthWidgetProvider::class.java)
+                )
+            updateAllWidgets(context, appWidgetManager, appWidgetIds, forceNetwork)
         }
 
         private fun updateAllWidgets(
             context: Context,
             appWidgetManager: AppWidgetManager,
-            appWidgetIds: IntArray
+            appWidgetIds: IntArray,
+            forceNetwork: Boolean
         ) {
             if (appWidgetIds.isEmpty()) return
+            if (!refreshInFlight.compareAndSet(false, true)) {
+                cachedPayload?.let { payload ->
+                    appWidgetIds.forEach { appWidgetId ->
+                        updateAppWidget(context, appWidgetManager, appWidgetId, payload)
+                    }
+                }
+                return
+            }
 
             Thread {
-                val payload = loadMonthPayload(context)
-                appWidgetIds.forEach { appWidgetId ->
-                    updateAppWidget(context, appWidgetManager, appWidgetId, payload)
+                try {
+                    val payload = loadMonthPayload(context, forceNetwork)
+                    appWidgetIds.forEach { appWidgetId ->
+                        updateAppWidget(context, appWidgetManager, appWidgetId, payload)
+                    }
+                } finally {
+                    refreshInFlight.set(false)
                 }
             }.start()
         }
 
-        private fun loadMonthPayload(context: Context): WidgetMonthPayload {
+        private fun loadMonthPayload(context: Context, forceNetwork: Boolean): WidgetMonthPayload {
             val month = YearMonth.now()
+            val now = System.currentTimeMillis()
+            val cached = cachedPayload
+            if (
+                !forceNetwork &&
+                cached?.month == month &&
+                now - cachedPayloadLoadedAtEpochMillis <= WIDGET_PAYLOAD_CACHE_MILLIS
+            ) {
+                return cached
+            }
+
             val visibleDays = buildCalendarDays(month)
                 .toMutableList()
                 .apply {
@@ -98,7 +151,7 @@ class ScheduleMonthWidgetProvider : AppWidgetProvider() {
             val monthData = runCatching {
                 val shiftOwnerType = session.defaultShiftOwnerType
                     .availableOrFallback(hasPartnerConnected = session.partnerUserId != null)
-                runBlocking { CalendarRepository().getMonth(month, shiftOwnerType) }
+                runBlocking { CalendarRepository().getMonth(month, shiftOwnerType, forceRefresh = forceNetwork) }
             }.getOrNull()
 
             return WidgetMonthPayload(
@@ -106,7 +159,10 @@ class ScheduleMonthWidgetProvider : AppWidgetProvider() {
                 days = visibleDays,
                 eventsByDate = monthData?.events?.let(::buildEventsByDate).orEmpty(),
                 shiftsByDate = monthData?.shifts?.associateBy { it.date }.orEmpty()
-            )
+            ).also {
+                cachedPayload = it
+                cachedPayloadLoadedAtEpochMillis = now
+            }
         }
 
         private fun updateAppWidget(
@@ -138,6 +194,8 @@ class ScheduleMonthWidgetProvider : AppWidgetProvider() {
                     appWidgetId + 20_000,
                     Intent(context, ScheduleMonthWidgetProvider::class.java).apply {
                         action = ScheduleMonthWidgetContract.ActionRefresh
+                        setPackage(context.packageName)
+                        putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, intArrayOf(appWidgetId))
                     },
                     PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
                 )
