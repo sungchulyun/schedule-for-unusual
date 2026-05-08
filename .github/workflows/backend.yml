@@ -30,16 +30,13 @@ jobs:
       - name: Gradle 빌드
         run: ./gradlew build
 
-      # 🔥 Docker 로그인
       - name: Docker 로그인
         run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
 
-      # 🔥 Docker 이미지 빌드
-      - name: Docker build
+      - name: Docker 이미지 빌드
         run: docker build -t ${{ secrets.DOCKER_USERNAME }}/schedule-backend:latest .
 
-      # 🔥 Docker Hub push
-      - name: Docker push
+      - name: Docker Hub push
         run: docker push ${{ secrets.DOCKER_USERNAME }}/schedule-backend:latest
 
   deploy:
@@ -47,35 +44,61 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: 서버 배포 (SSH)
+      - name: 서버 배포 SSH
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
           script: |
+            set -e
+
             echo "🚀 배포 시작"
 
-            docker pull ${{ secrets.DOCKER_USERNAME }}/schedule-backend:latest
+            cd /home/admin/app
 
-            docker stop backend || true
-            docker rm backend || true
+            echo "📌 Docker 로그인"
+            echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
 
-            docker run -d \
-              --name backend \
-              --network app_default \
-              -p 8080:8080 \
-              -v /opt/schedule-api/firebase/schedule-for-unusual-fbe03-firebase-adminsdk-fbsvc-f4d15576a0.json:/app/firebase/firebase-adminsdk.json:ro \
-              -e SPRING_PROFILES_ACTIVE=${{ secrets.SPRING_PROFILES_ACTIVE }} \
-              -e DB_HOST=${{ secrets.DB_HOST }} \
-              -e DB_NAME=${{ secrets.DB_NAME }} \
-              -e SPRING_DATASOURCE_USERNAME=${{ secrets.SPRING_DATASOURCE_USERNAME }} \
-              -e SPRING_DATASOURCE_PASSWORD=${{ secrets.SPRING_DATASOURCE_PASSWORD }} \
-              -e APP_AUTH_JWT_SECRET=${{ secrets.APP_AUTH_JWT_SECRET }} \
-              -e APP_AUTH_KAKAO_CLIENT_ID=${{ secrets.APP_AUTH_KAKAO_CLIENT_ID }} \
-              -e APP_AUTH_KAKAO_REDIRECT_URI=${{ secrets.APP_AUTH_KAKAO_REDIRECT_URI }} \
-              -e APP_FCM_ENABLED=true \
-              -e APP_FCM_CREDENTIALS_PATH=/app/firebase/firebase-adminsdk.json \
-              ${{ secrets.DOCKER_USERNAME }}/schedule-backend:latest
+            echo "📌 환경변수 파일 생성"
+            cat > .env <<EOF
+            DOCKER_USERNAME=${{ secrets.DOCKER_USERNAME }}
+            SPRING_PROFILES_ACTIVE=${{ secrets.SPRING_PROFILES_ACTIVE }}
+            DB_HOST=${{ secrets.DB_HOST }}
+            DB_NAME=${{ secrets.DB_NAME }}
+            SPRING_DATASOURCE_USERNAME=${{ secrets.SPRING_DATASOURCE_USERNAME }}
+            SPRING_DATASOURCE_PASSWORD=${{ secrets.SPRING_DATASOURCE_PASSWORD }}
+            APP_AUTH_JWT_SECRET=${{ secrets.APP_AUTH_JWT_SECRET }}
+            APP_AUTH_KAKAO_CLIENT_ID=${{ secrets.APP_AUTH_KAKAO_CLIENT_ID }}
+            APP_AUTH_KAKAO_REDIRECT_URI=${{ secrets.APP_AUTH_KAKAO_REDIRECT_URI }}
+            APP_FCM_ENABLED=true
+            APP_FCM_CREDENTIALS_PATH=/app/firebase/firebase-adminsdk.json
+            EOF
+
+            echo "📌 기존 수동 실행 backend 컨테이너 정리"
+
+            COMPOSE_PROJECT=$(docker inspect -f '{{ index .Config.Labels "com.docker.compose.project" }}' backend 2>/dev/null || true)
+
+            if [ -z "$COMPOSE_PROJECT" ]; then
+              docker rm -f backend 2>/dev/null || true
+            fi
+
+            echo "📌 최신 backend 이미지 pull"
+            docker compose pull backend
+
+            echo "📌 docker compose로 서비스 반영"
+            docker compose up -d --remove-orphans
+
+            echo "📌 Nginx 설정 검증"
+            docker compose exec -T nginx nginx -t
+
+            echo "📌 컨테이너 상태 확인"
+            docker compose ps
+
+            echo "📌 backend 로그 확인"
+            docker compose logs --tail=100 backend
+
+            echo "📌 nginx 로그 확인"
+            docker compose logs --tail=100 nginx
 
             echo "✅ 배포 완료"
