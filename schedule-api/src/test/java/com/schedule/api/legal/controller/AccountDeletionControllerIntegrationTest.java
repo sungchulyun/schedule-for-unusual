@@ -33,4 +33,14 @@ class AccountDeletionControllerIntegrationTest {
                 .andExpect(content().string(containsString("개발자 이름: 윤성철")))
                 .andExpect(content().string(containsString("help@example.com")));
     }
+
+    @Test
+    void childSafetyStandardsPageIsPublic() throws Exception {
+        mockMvc.perform(get("/child-safety-standards"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("linkTogether 아동 안전 표준")))
+                .andExpect(content().string(containsString("아동 성적 학대 및 착취(CSAE)")))
+                .andExpect(content().string(containsString("아동 성적 학대 자료(CSAM)")))
+                .andExpect(content().string(containsString("help@example.com")));
+    }
 }

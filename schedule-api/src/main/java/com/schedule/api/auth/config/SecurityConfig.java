@@ -32,6 +32,7 @@ public class SecurityConfig {
                 .headers(headers -> headers.frameOptions(frame -> frame.sameOrigin()))
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers(HttpMethod.GET, "/account-deletion").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/child-safety-standards").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/groups/invites/*").permitAll()
                         .requestMatchers(
                                 "/api/v1/auth/kakao/login",
