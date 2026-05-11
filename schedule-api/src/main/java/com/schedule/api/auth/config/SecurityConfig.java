@@ -31,6 +31,7 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .headers(headers -> headers.frameOptions(frame -> frame.sameOrigin()))
                 .authorizeHttpRequests(authorize -> authorize
+                        .requestMatchers(HttpMethod.GET, "/account-deletion").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/groups/invites/*").permitAll()
                         .requestMatchers(
                                 "/api/v1/auth/kakao/login",
