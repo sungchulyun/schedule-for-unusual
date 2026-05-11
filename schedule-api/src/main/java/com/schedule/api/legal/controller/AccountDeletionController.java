@@ -23,7 +23,7 @@ public class AccountDeletionController {
                 <head>
                   <meta charset="utf-8">
                   <meta name="viewport" content="width=device-width, initial-scale=1">
-                  <title>계정 및 데이터 삭제 요청</title>
+                  <title>linkTogether 계정 및 데이터 삭제 요청</title>
                   <style>
                     body {
                       margin: 0;
@@ -55,8 +55,14 @@ public class AccountDeletionController {
                 </head>
                 <body>
                   <main>
-                    <h1>계정 및 데이터 삭제 요청</h1>
-                    <p>이 페이지는 schedule-api 앱 계정과 관련 데이터 삭제 요청을 위한 안내 페이지입니다.</p>
+                    <h1>linkTogether 계정 및 데이터 삭제 요청</h1>
+                    <p>이 페이지는 Google Play 스토어에 윤성철 개발자 이름으로 등록된 linkTogether 앱 계정과 관련 데이터 삭제 요청을 위한 안내 페이지입니다.</p>
+
+                    <h2>앱 및 개발자 정보</h2>
+                    <ul>
+                      <li>앱 이름: linkTogether</li>
+                      <li>개발자 이름: 윤성철</li>
+                    </ul>
 
                     <h2>삭제 요청 방법</h2>
                     <p>

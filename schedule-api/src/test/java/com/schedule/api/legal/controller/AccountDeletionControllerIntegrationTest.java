@@ -29,7 +29,8 @@ class AccountDeletionControllerIntegrationTest {
     void accountDeletionPageIsPublic() throws Exception {
         mockMvc.perform(get("/account-deletion"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(containsString("계정 및 데이터 삭제 요청")))
+                .andExpect(content().string(containsString("linkTogether 계정 및 데이터 삭제 요청")))
+                .andExpect(content().string(containsString("개발자 이름: 윤성철")))
                 .andExpect(content().string(containsString("help@example.com")));
     }
 }
